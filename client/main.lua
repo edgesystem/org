@@ -8,11 +8,21 @@ local isPanelOpen = false
 RegisterCommand('painelorg', function()
     if isPanelOpen then return end
 
-    isPanelOpen = true
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'openPanel'
-    })
+    -- Verificar se o jogador pertence a uma organizacao
+    lib.callback('orgpanel:getMyOrgInfo', false, function(orgInfo)
+        if not orgInfo then
+            TriggerEvent('qb-core:client:Notify', 'Voce nao pertence a nenhuma organizacao!', 'error')
+            return
+        end
+
+        print('[org_panel] Abrindo painel para: ' .. orgInfo.label)
+        isPanelOpen = true
+        SetNuiFocus(true, false)
+        SetNuiFocusKeepInput(true)
+        SendNUIMessage({
+            action = 'openPanel'
+        })
+    end)
 end, false)
 
 -- =====================================================
@@ -20,7 +30,17 @@ end, false)
 -- =====================================================
 
 RegisterNUICallback('closePanel', function(data, cb)
+    print('[org_panel] Fechando painel')
     SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
+    isPanelOpen = false
+    cb('ok')
+end)
+
+RegisterNUICallback('orgpanel:close', function(data, cb)
+    print('[org_panel] Fechando painel (orgpanel:close)')
+    SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
     isPanelOpen = false
     cb('ok')
 end)
@@ -122,7 +142,7 @@ RegisterNUICallback('orgpanel:unbanMember', function(data, cb)
 end)
 
 -- =====================================================
--- KEYBIND (opcional)
+-- KEYBIND
 -- =====================================================
 
-RegisterKeyMapping('painelorg', 'Abrir Painel da Organização', 'keyboard', 'F7')
+RegisterKeyMapping('painelorg', 'Abrir Painel da Organizacao', 'keyboard', 'F7')

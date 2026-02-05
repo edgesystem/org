@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Shield, AlertTriangle, UserX, Calendar, RotateCcw } from "lucide-react";
+import { fetchNui } from "../lib/nui";
 
 interface PDProps {
   onUnbanMember: (member: any) => void;
@@ -71,6 +72,19 @@ export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
       console.error("Erro ao desbanir membro:", e);
     }
   };
+
+  return (
+    <div className="space-y-6">
+      {/* Header Stats */}
+      <div className="grid grid-cols-3 gap-6">
+        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
+          <p className="text-[#99a1af] text-xs mb-1">Membros Banidos</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{blacklist.length}</p>
+        </div>
+        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
+          <p className="text-[#99a1af] text-xs mb-1">Bloqueios Hoje</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">2</p>
+        </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Status do Sistema</p>
           <div className="flex items-center gap-2">

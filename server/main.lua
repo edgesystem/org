@@ -1,11 +1,63 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 
 -- =====================================================
+-- TOKYO_QJOBSYSTEM CACHE
+-- =====================================================
+
+---@type table<string, table>
+local orgConfigCache = {}
+
+--- Carrega todas as configurações de org do tokyo_qjobsystem
+local function LoadOrgConfigs()
+    local result = MySQL.scalar.await("SELECT jobs FROM tokyo_qjobsystem")
+
+    orgConfigCache = {}
+
+    if result then
+        local ok, orgList = pcall(function()
+            return json.decode(result)
+        end)
+
+        if ok and orgList and type(orgList) == "table" then
+            for _, orgData in ipairs(orgList) do
+                local orgName = orgData.job or orgData.name
+                if orgName then
+                    orgConfigCache[orgName] = {
+                        label = orgData.label or orgName,
+                        type = orgData.type or orgData.jobtype or 'job',
+                        grades = orgData.grades or {}
+                    }
+                end
+            end
+        end
+    end
+
+    if Config.Debug then
+        local orgCount = 0
+        for _ in pairs(orgConfigCache) do orgCount = orgCount + 1 end
+        print("[org_panel] Carregadas " .. orgCount .. " configuracoes de org do tokyo_qjobsystem")
+    end
+end
+
+-- Carregar configs na inicialização
+LoadOrgConfigs()
+
+-- Recarregar configs quando solicitado
+QBCore.Commands.Add('orgpanel_reload', 'Recarregar configuracoes das orgs', {}, true, function(source)
+    LoadOrgConfigs()
+    local orgCount = 0
+    for _ in pairs(orgConfigCache) do orgCount = orgCount + 1 end
+    TriggerClientEvent('chat:addMessage', source, {
+        args = { "[org_panel]", "Configuracoes recarregadas. Total de orgs: " .. orgCount }
+    })
+end, 'admin')
+
+-- =====================================================
 -- HELPER FUNCTIONS
 -- =====================================================
 
 ---@param source number
----@return table|nil orgData { name: string, type: 'job'|'gang', label: string, grade: number, gradeName: string }
+---@return table|nil orgData
 local function GetOrgName(source)
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then return nil end
@@ -13,25 +65,57 @@ local function GetOrgName(source)
     local gang = Player.PlayerData.gang
     local job = Player.PlayerData.job
 
-    -- Prioriza gang se existir e tiver config
-    if gang and gang.name and gang.name ~= 'none' and Config.Organizations[gang.name] then
+    if gang and gang.name and gang.name ~= 'none' then
+        local orgConfig = orgConfigCache[gang.name]
+        if orgConfig then
+            local gradeData = orgConfig.grades[tostring(gang.grade.level)] or orgConfig.grades[gang.grade.level] or {}
+            return {
+                name = gang.name,
+                type = 'gang',
+                label = orgConfig.label,
+                grade = gang.grade.level,
+                gradeName = gang.grade.name or gradeData.name or 'Membro',
+                isBoss = gradeData.isboss == true,
+                bankAuth = gradeData.bankAuth == true,
+                isRecruiter = gradeData.isrecruiter == true
+            }
+        end
         return {
             name = gang.name,
             type = 'gang',
-            label = gang.label or Config.Organizations[gang.name].label,
+            label = gang.label or gang.name,
             grade = gang.grade.level,
-            gradeName = gang.grade.name
+            gradeName = gang.grade.name,
+            isBoss = false,
+            bankAuth = false,
+            isRecruiter = false
         }
     end
 
-    -- Depois job
-    if job and job.name and job.name ~= 'unemployed' and Config.Organizations[job.name] then
+    if job and job.name and job.name ~= 'unemployed' then
+        local orgConfig = orgConfigCache[job.name]
+        if orgConfig then
+            local gradeData = orgConfig.grades[tostring(job.grade.level)] or orgConfig.grades[job.grade.level] or {}
+            return {
+                name = job.name,
+                type = 'job',
+                label = orgConfig.label,
+                grade = job.grade.level,
+                gradeName = job.grade.name or gradeData.name or 'Membro',
+                isBoss = gradeData.isboss == true,
+                bankAuth = gradeData.bankAuth == true,
+                isRecruiter = gradeData.isrecruiter == true
+            }
+        end
         return {
             name = job.name,
             type = 'job',
-            label = job.label or Config.Organizations[job.name].label,
+            label = job.label or job.name,
             grade = job.grade.level,
-            gradeName = job.grade.name
+            gradeName = job.grade.name,
+            isBoss = false,
+            bankAuth = false,
+            isRecruiter = false
         }
     end
 
@@ -45,24 +129,25 @@ local function HasOrgPermission(source, permission)
     local orgData = GetOrgName(source)
     if not orgData then return false end
 
-    local orgConfig = Config.Organizations[orgData.name]
-    if not orgConfig then return false end
+    local orgName = orgData.name
+    local orgConfig = orgConfigCache[orgName]
 
-    local grade = orgData.grade
+    if orgConfig then
+        local gradeLevel = orgData.grade
+        local gradeData = orgConfig.grades[tostring(gradeLevel)] or orgConfig.grades[gradeLevel] or {}
 
-    if permission == 'boss' then
-        for _, bossGrade in ipairs(orgConfig.bossgrades or {}) do
-            if grade == bossGrade then return true end
-        end
-    elseif permission == 'bank' then
-        for _, bankGrade in ipairs(orgConfig.bankAuthGrades or {}) do
-            if grade == bankGrade then return true end
-        end
-    elseif permission == 'recruit' then
-        for _, recruiterGrade in ipairs(orgConfig.recruiterGrades or {}) do
-            if grade == recruiterGrade then return true end
+        if permission == 'boss' then
+            return orgData.isBoss or gradeData.isboss == true
+        elseif permission == 'bank' then
+            return orgData.bankAuth or gradeData.bankAuth == true
+        elseif permission == 'recruit' then
+            return orgData.isRecruiter or gradeData.isrecruiter == true
         end
     end
+
+    if permission == 'boss' then return orgData.isBoss end
+    if permission == 'bank' then return orgData.bankAuth end
+    if permission == 'recruit' then return orgData.isRecruiter end
 
     return false
 end
@@ -82,7 +167,6 @@ local function LogOrgAction(orgName, actionBy, actionType, targetCitizenid, deta
     })
 end
 
--- Garante que a conta da org existe
 local function EnsureOrgAccount(orgName, orgType, label)
     local exists = MySQL.scalar.await('SELECT 1 FROM org_accounts WHERE org_name = ?', { orgName })
     if not exists then
@@ -95,7 +179,7 @@ local function EnsureOrgAccount(orgName, orgType, label)
 end
 
 ---@param source number
----@return table|nil org { citizenid, orgName, orgType, label, gradeLevel, gradeName, isBoss, bankAuth, isRecruiter }
+---@return table|nil org
 local function GetPlayerOrgFromDB(source)
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then return nil end
@@ -124,6 +208,14 @@ local function GetPlayerOrgFromDB(source)
 
     local label = orgJson.label or orgName
 
+    local orgConfig = orgConfigCache[orgName]
+    if orgConfig then
+        local gradeData = orgConfig.grades[tostring(gradeLevel)] or orgConfig.grades[gradeLevel] or {}
+        isBoss = isBoss or gradeData.isboss == true
+        bankAuth = bankAuth or gradeData.bankAuth == true
+        isRecruiter = isRecruiter or gradeData.isrecruiter == true
+    end
+
     return {
         citizenid = citizenid,
         orgName = orgName,
@@ -141,15 +233,20 @@ end
 -- READ CALLBACKS
 -- =====================================================
 
--- Informações resumidas da org do jogador (NUI)
 lib.callback.register('orgpanel:getMyOrgInfo', function(source)
+    print('[org_panel] getMyOrgInfo chamado para source: ' .. tostring(source))
     local org = GetPlayerOrgFromDB(source)
-    if not org then return nil end
+    print('[org_panel] GetPlayerOrgFromDB retornou orgName: ' .. (org and org.orgName or 'nil'))
+    if not org then
+        print('[org_panel] getMyOrgInfo retornando nil')
+        return nil
+    end
 
     EnsureOrgAccount(org.orgName, org.orgType, org.label)
 
     local balance = MySQL.scalar.await('SELECT balance FROM org_accounts WHERE org_name = ?', { org.orgName }) or 0
 
+    print('[org_panel] getMyOrgInfo retornando sucesso: ' .. org.label)
     return {
         orgName = org.orgName,
         label = org.label,
@@ -223,7 +320,7 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
                 name = (info.firstname or '') .. ' ' .. (info.lastname or '')
             end
         end
-        
+
         if row.metadata then
             local meta = type(row.metadata) == 'string' and json.decode(row.metadata) or row.metadata
             mugshot = meta and meta.mugshot_url or nil
@@ -243,11 +340,10 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
             end
         end
 
-        -- Dados extras de farm para a UI
         local today = os.date('%Y-%m-%d')
         local daily_total = MySQL.scalar.await('SELECT quantity FROM org_farm_progress WHERE citizenid = ? AND org_name = ? AND date = ?', { row.citizenid, orgData.name, today }) or 0
         local weekly_total = MySQL.scalar.await('SELECT SUM(quantity) FROM org_farm_progress WHERE citizenid = ? AND org_name = ? AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)', { row.citizenid, orgData.name }) or 0
-        
+
         local deliveries_rows = MySQL.query.await('SELECT quantity, created_at FROM org_farm_deliveries WHERE citizenid = ? AND org_name = ? ORDER BY created_at DESC LIMIT 5', { row.citizenid, orgData.name })
         local recent_deliveries = {}
         if deliveries_rows then
@@ -278,7 +374,6 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
     return members
 end)
 
--- Configuração de farm diária da organização
 lib.callback.register('orgpanel:getFarmConfig', function(source)
     local org = GetPlayerOrgFromDB(source)
     if not org then return nil end
@@ -350,7 +445,6 @@ lib.callback.register('orgpanel:getFarmRanking', function(source, data)
     return ranking
 end)
 
--- Progresso diário de farm do jogador
 lib.callback.register('orgpanel:getMyFarmProgress', function(source)
     local org = GetPlayerOrgFromDB(source)
     if not org then return nil end
@@ -451,7 +545,7 @@ end)
 
 lib.callback.register('orgpanel:updateFarmConfig', function(source, data)
     if not HasOrgPermission(source, 'boss') then
-        return { success = false, message = 'Sem permissão.' }
+        return { success = false, message = 'Sem permissao.' }
     end
     local org = GetPlayerOrgFromDB(source)
     if not org then return { success = false } end
@@ -467,15 +561,15 @@ end)
 
 lib.callback.register('orgpanel:banMember', function(source, data)
     if not HasOrgPermission(source, 'boss') then
-        return { success = false, message = 'Sem permissão.' }
+        return { success = false, message = 'Sem permissao.' }
     end
     local orgData = GetOrgName(source)
     local Player = QBCore.Functions.GetPlayer(source)
-    
+
     MySQL.insert.await('INSERT INTO org_bans (org_name, banned_citizenid, banned_by, reason) VALUES (?, ?, ?, ?)', {
         orgData.name, data.citizenid, Player.PlayerData.citizenid, data.reason or 'Sem motivo'
     })
-    
+
     local Target = QBCore.Functions.GetPlayerByCitizenId(data.citizenid)
     if Target then
         if orgData.type == 'gang' then Target.Functions.SetGang('none', 0)
@@ -487,10 +581,10 @@ end)
 
 lib.callback.register('orgpanel:unbanMember', function(source, data)
     if not HasOrgPermission(source, 'boss') then
-        return { success = false, message = 'Sem permissão.' }
+        return { success = false, message = 'Sem permissao.' }
     end
     local orgData = GetOrgName(source)
-    
+
     MySQL.update.await('UPDATE org_bans SET is_active = 0 WHERE org_name = ? AND banned_citizenid = ?', {
         orgData.name, data.citizenid
     })
@@ -498,20 +592,24 @@ lib.callback.register('orgpanel:unbanMember', function(source, data)
     return { success = true }
 end)
 
+-- =====================================================
+-- WRITE CALLBACKS
+-- =====================================================
+
 lib.callback.register('orgpanel:deposit', function(source, data)
     local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return { success = false, message = 'Jogador não encontrado.' } end
+    if not Player then return { success = false, message = 'Jogador nao encontrado.' } end
 
     if not HasOrgPermission(source, 'bank') then
-        return { success = false, message = 'Sem permissão para depositar.' }
+        return { success = false, message = 'Sem permissao para depositar.' }
     end
 
     local orgData = GetOrgName(source)
-    if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
+    if not orgData then return { success = false, message = 'Voce nao pertence a uma organizacao.' } end
 
     local amount = tonumber(data and data.amount)
     if not amount or amount <= 0 then
-        return { success = false, message = 'Valor inválido.' }
+        return { success = false, message = 'Valor invalido.' }
     end
 
     local citizenid = Player.PlayerData.citizenid
@@ -528,28 +626,28 @@ lib.callback.register('orgpanel:deposit', function(source, data)
         orgData.name,
         citizenid,
         'entrada',
-        data.description or 'Depósito no cofre',
+        data.description or 'Deposito no cofre',
         amount
     })
 
     LogOrgAction(orgData.name, citizenid, 'deposit', nil, { amount = amount })
-    return { success = true, message = 'Depósito realizado.', newBalance = (MySQL.scalar.await('SELECT balance FROM org_accounts WHERE org_name = ?', { orgData.name }) or 0) }
+    return { success = true, message = 'Deposito realizado.', newBalance = (MySQL.scalar.await('SELECT balance FROM org_accounts WHERE org_name = ?', { orgData.name }) or 0) }
 end)
 
 lib.callback.register('orgpanel:withdraw', function(source, data)
     local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return { success = false, message = 'Jogador não encontrado.' } end
+    if not Player then return { success = false, message = 'Jogador nao encontrado.' } end
 
     if not HasOrgPermission(source, 'bank') then
-        return { success = false, message = 'Sem permissão para sacar.' }
+        return { success = false, message = 'Sem permissao para sacar.' }
     end
 
     local orgData = GetOrgName(source)
-    if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
+    if not orgData then return { success = false, message = 'Voce nao pertence a uma organizacao.' } end
 
     local amount = tonumber(data and data.amount)
     if not amount or amount <= 0 then
-        return { success = false, message = 'Valor inválido.' }
+        return { success = false, message = 'Valor invalido.' }
     end
 
     local balance = MySQL.scalar.await('SELECT balance FROM org_accounts WHERE org_name = ?', { orgData.name }) or 0
@@ -575,21 +673,20 @@ lib.callback.register('orgpanel:withdraw', function(source, data)
     return { success = true, message = 'Saque realizado.', newBalance = newBalance }
 end)
 
--- Coletar recompensa diária de farm
 lib.callback.register('orgpanel:claimFarmReward', function(source)
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then
-        return { success = false, message = 'Jogador não encontrado.' }
+        return { success = false, message = 'Jogador nao encontrado.' }
     end
 
     local org = GetPlayerOrgFromDB(source)
     if not org then
-        return { success = false, message = 'Você não pertence a uma organização.' }
+        return { success = false, message = 'Voce nao pertence a uma organizacao.' }
     end
 
     local cfg = MySQL.single.await('SELECT * FROM org_farm_settings WHERE org_name = ?', { org.orgName })
     if not cfg or cfg.enabled ~= 1 then
-        return { success = false, message = 'Sistema de farm não está configurado para esta organização.' }
+        return { success = false, message = 'Sistema de farm nao configurado.' }
     end
 
     local today = os.date('%Y-%m-%d')
@@ -604,12 +701,12 @@ lib.callback.register('orgpanel:claimFarmReward', function(source)
     local rewardClaimed = row and (row.reward_claimed == 1) or false
 
     if rewardClaimed then
-        return { success = false, message = 'Recompensa já coletada hoje.' }
+        return { success = false, message = 'Recompensa ja coletada hoje.' }
     end
 
     local dailyGoal = cfg.daily_goal or 0
     if quantity < dailyGoal then
-        return { success = false, message = 'Meta diária ainda não foi atingida.' }
+        return { success = false, message = 'Meta diaria ainda nao atingida.' }
     end
 
     local rewardType = cfg.reward_type or 'per_unit'
@@ -624,12 +721,12 @@ lib.callback.register('orgpanel:claimFarmReward', function(source)
     end
 
     if reward <= 0 then
-        return { success = false, message = 'Recompensa configurada é 0.' }
+        return { success = false, message = 'Recompensa configurada e 0.' }
     end
 
     local balance = MySQL.scalar.await('SELECT balance FROM org_accounts WHERE org_name = ?', { org.orgName }) or 0
     if balance < reward then
-        return { success = false, message = 'Saldo insuficiente no cofre da organização.' }
+        return { success = false, message = 'Saldo insuficiente no cofre.' }
     end
 
     MySQL.update.await('UPDATE org_accounts SET balance = balance - ? WHERE org_name = ?', { reward, org.orgName })
@@ -646,7 +743,7 @@ lib.callback.register('orgpanel:claimFarmReward', function(source)
 
     return {
         success = true,
-        message = ('Você recebeu R$ %.2f pela meta diária.'):format(reward),
+        message = ('Voce recebeu R$ %.2f pela meta diaria.'):format(reward),
         reward = reward,
         newBalance = newBalance,
         progress = {
@@ -664,41 +761,56 @@ end)
 
 lib.callback.register('orgpanel:changeMemberGrade', function(source, data)
     if not HasOrgPermission(source, 'boss') then
-        return { success = false, message = 'Sem permissão para alterar cargo.' }
+        return { success = false, message = 'Sem permissao para alterar cargo.' }
     end
 
     local orgData = GetOrgName(source)
-    if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
+    if not orgData then return { success = false, message = 'Voce nao pertence a uma organizacao.' } end
 
     local targetCitizenid = data and data.citizenid
     local gradeName = data and data.gradeName
-    
+
     if not targetCitizenid or not gradeName then
-        return { success = false, message = 'Dados inválidos.' }
+        return { success = false, message = 'Dados invalidos.' }
     end
 
     local newGrade = 0
-    if orgData.type == 'gang' then
-        local gang = QBCore.Shared.Gangs[orgData.name]
-        for level, data in pairs(gang.grades) do
-            if data.name == gradeName then
+    local orgConfig = orgConfigCache[orgData.name]
+    if orgConfig and orgConfig.grades then
+        for level, gradeData in pairs(orgConfig.grades) do
+            if gradeData.name == gradeName then
                 newGrade = tonumber(level)
                 break
             end
         end
-    else
-        local job = QBCore.Shared.Jobs[orgData.name]
-        for level, data in pairs(job.grades) do
-            if data.name == gradeName then
-                newGrade = tonumber(level)
-                break
+    end
+
+    if newGrade == 0 then
+        if orgData.type == 'gang' then
+            local gang = QBCore.Shared.Gangs[orgData.name]
+            if gang and gang.grades then
+                for level, gdata in pairs(gang.grades) do
+                    if gdata.name == gradeName then
+                        newGrade = tonumber(level)
+                        break
+                    end
+                end
+            end
+        else
+            local job = QBCore.Shared.Jobs[orgData.name]
+            if job and job.grades then
+                for level, jdata in pairs(job.grades) do
+                    if jdata.name == gradeName then
+                        newGrade = tonumber(level)
+                        break
+                    end
+                end
             end
         end
     end
 
     local TargetPlayer = QBCore.Functions.GetPlayerByCitizenId(targetCitizenid)
     if not TargetPlayer then
-        -- Player offline, atualizar no DB diretamente
         if orgData.type == 'gang' then
             MySQL.update.await("UPDATE players SET gang = JSON_SET(gang, '$.grade.level', ?, '$.grade.name', ?) WHERE citizenid = ?", { newGrade, gradeName, targetCitizenid })
         else
@@ -718,11 +830,11 @@ end)
 
 lib.callback.register('orgpanel:recruitPlayer', function(source, data)
     if not HasOrgPermission(source, 'recruit') then
-        return { success = false, message = 'Sem permissão para recrutar.' }
+        return { success = false, message = 'Sem permissao para recrutar.' }
     end
 
     local orgData = GetOrgName(source)
-    if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
+    if not orgData then return { success = false, message = 'Voce nao pertence a uma organizacao.' } end
 
     local targetId = tonumber(data and data.targetId)
     local targetCitizenid = data and data.citizenid
@@ -732,19 +844,19 @@ lib.callback.register('orgpanel:recruitPlayer', function(source, data)
 
     local TargetPlayer = targetId and QBCore.Functions.GetPlayer(targetId) or QBCore.Functions.GetPlayerByCitizenId(targetCitizenid)
     if not TargetPlayer then
-        return { success = false, message = 'Jogador não está online.' }
+        return { success = false, message = 'Jogador nao esta online.' }
     end
 
     local recruitedCitizenid = TargetPlayer.PlayerData.citizenid
 
     if orgData.type == 'gang' then
         if TargetPlayer.PlayerData.gang and TargetPlayer.PlayerData.gang.name == orgData.name then
-            return { success = false, message = 'Jogador já está na organização.' }
+            return { success = false, message = 'Jogador ja esta na organizacao.' }
         end
         TargetPlayer.Functions.SetGang(orgData.name, 0)
     else
         if TargetPlayer.PlayerData.job and TargetPlayer.PlayerData.job.name == orgData.name then
-            return { success = false, message = 'Jogador já está na organização.' }
+            return { success = false, message = 'Jogador ja esta na organizacao.' }
         end
         TargetPlayer.Functions.SetJob(orgData.name, 0)
     end
@@ -766,11 +878,11 @@ end)
 
 lib.callback.register('orgpanel:banMember', function(source, data)
     if not HasOrgPermission(source, 'boss') then
-        return { success = false, message = 'Sem permissão para banir.' }
+        return { success = false, message = 'Sem permissao para banir.' }
     end
 
     local orgData = GetOrgName(source)
-    if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
+    if not orgData then return { success = false, message = 'Voce nao pertence a uma organizacao.' } end
 
     local bannedCitizenid = data and data.citizenid
     local reason = (data and data.reason) or 'Sem motivo informado'
@@ -802,11 +914,11 @@ end)
 
 lib.callback.register('orgpanel:unbanMember', function(source, data)
     if not HasOrgPermission(source, 'boss') then
-        return { success = false, message = 'Sem permissão para desbanir.' }
+        return { success = false, message = 'Sem permissao para desbanir.' }
     end
 
     local orgData = GetOrgName(source)
-    if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
+    if not orgData then return { success = false, message = 'Voce nao pertence a uma organizacao.' } end
 
     local bannedCitizenid = data and data.citizenid
     local banId = tonumber(data and data.banId)
@@ -835,15 +947,20 @@ lib.callback.register('orgpanel:unbanMember', function(source, data)
 end)
 
 -- =====================================================
--- DEBUG COMMAND
+-- DEBUG COMMAND (sempre habilitado para teste)
 -- =====================================================
 
-if Config.Debug then
-    QBCore.Commands.Add('orgdebug', 'Debug org info', {}, false, function(source)
-        local orgData = GetOrgName(source)
+QBCore.Commands.Add('orgdebug', 'Debug org info', {}, false, function(source)
+    local orgData = GetOrgName(source)
+    print('=== ORG PANEL DEBUG ===')
+    if orgData then
         print(json.encode(orgData, { indent = true }))
         print('Has boss permission:', HasOrgPermission(source, 'boss'))
         print('Has bank permission:', HasOrgPermission(source, 'bank'))
         print('Has recruit permission:', HasOrgPermission(source, 'recruit'))
-    end)
-end
+        print('ORG ENCONTRADA - Painel deve abrir')
+    else
+        print('ORG NAO ENCONTRADA - Painel nao abrira')
+    end
+    print('========================')
+end)

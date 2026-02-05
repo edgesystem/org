@@ -9,9 +9,10 @@ interface HeaderProps {
   bankBalance: number;
   membersOnline: number;
   maxMembers: number;
+  orgLabel?: string;
 }
 
-export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, maxMembers }: HeaderProps) {
+export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, maxMembers, orgLabel }: HeaderProps) {
   const tabs: TabType[] = ["INÍCIO", "MEMBROS", "FARMS", "RECRUTAMENTO", "BANCO", "PD"];
 
   const handleDiscordClick = () => {
@@ -46,7 +47,7 @@ export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, ma
           <div>
             <p className="text-[#99a1af] text-xs font-['Arimo:Regular',sans-serif]">Organização</p>
             <h1 className="text-white text-4xl font-['Arimo:Bold',sans-serif] tracking-[0.9px]">
-              é os cria
+              {orgLabel || 'Carregando...'}
             </h1>
           </div>
         </div>

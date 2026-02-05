@@ -54,6 +54,7 @@ export default function App() {
     setBlacklist
   } = useOrgData();
 
+  const [isVisible, setIsVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("INÍCIO");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showRecruitModal, setShowRecruitModal] = useState(false);
@@ -69,7 +70,29 @@ export default function App() {
   const [selectedMemberForUnban, setSelectedMemberForUnban] = useState<any>(null);
   const [bannedMemberName, setBannedMemberName] = useState("");
   const [slotLimitInfo, setSlotLimitInfo] = useState({ rank: "", currentCount: 0, limit: 0 });
-  const [leaderMessage, setLeaderMessage] = useState("Rádio: 320, 321, 323\nJaqueta: 664 textura25\nCalça: 27a textura\nMochila 22 textura 5");
+  const [leaderMessage, setLeaderMessage] = useState<string | null>(null);
+
+  // Listen for NUI messages
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      console.log('[org_panel] NUI Message received:', data);
+
+      if (data.action === 'openPanel') {
+        console.log('[org_panel] Opening panel');
+        setIsVisible(true);
+        refreshData();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [refreshData]);
+
+  // Don't render anything if not visible
+  if (!isVisible) {
+    return null;
+  }
 
   const handleDeliverGoal = () => {
     setShowSuccessModal(true);
@@ -152,12 +175,11 @@ export default function App() {
     }
   };
 
-  const confirmEditGoal = async (goalAmount: number, pricePerUnit: number, newPrizes: any) => {
+  const confirmEditGoal = async (goalAmount: number, pricePerUnit: number) => {
     try {
       const resp = await fetchNui("orgpanel:updateFarmConfig", { 
         dailyGoal: goalAmount, 
-        rewardPerUnit: pricePerUnit,
-        prizes: newPrizes 
+        rewardPerUnit: pricePerUnit
       });
       if (resp.success) {
         refreshData();
@@ -221,6 +243,7 @@ export default function App() {
         bankBalance={orgInfo?.balance ?? 0}
         membersOnline={members.filter(m => m.online).length}
         maxMembers={149}
+        orgLabel={orgInfo?.label}
       />
 
       {/* Scrollable Content Area */}
@@ -233,9 +256,9 @@ export default function App() {
               onEditLeaderMessage={handleEditLeaderMessage}
               maxGoal={farmConfig?.dailyGoal ?? 0}
               pricePerUnit={farmConfig?.rewardPerUnit ?? 0}
-              prizes={{ first: 0, second: 0, third: 0, others: 0 }}
-              leaderMessage={leaderMessage}
+              leaderMessage={leaderMessage || ''}
               members={members}
+              farmProgress={farmProgress}
               FarmProgressComponent={
                 farmProgress ? (
                   <FarmProgressArc
@@ -317,9 +340,8 @@ export default function App() {
       )}
       {showEditGoalModal && (
         <EditGoalModal
-          currentGoal={maxGoal}
-          currentPricePerUnit={pricePerUnit}
-          currentPrizes={prizes}
+          currentGoal={farmConfig?.dailyGoal ?? 0}
+          currentPricePerUnit={farmConfig?.rewardPerUnit ?? 0}
           onClose={() => setShowEditGoalModal(false)}
           onConfirm={confirmEditGoal}
         />
@@ -332,7 +354,7 @@ export default function App() {
       )}
       {showEditLeaderMessageModal && (
         <EditLeaderMessageModal
-          currentMessage={leaderMessage}
+          currentMessage={leaderMessage || ''}
           onClose={() => setShowEditLeaderMessageModal(false)}
           onConfirm={confirmEditLeaderMessage}
         />
@@ -345,6 +367,7 @@ export default function App() {
           limit={slotLimitInfo.limit}
         />
       )}
+      </div>
     </div>
   );
 }

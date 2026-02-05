@@ -9,7 +9,10 @@ type NuiEvents =
   | "orgpanel:getTransactions"
   | "orgpanel:getBannedMembers"
   | "orgpanel:deposit"
-  | "orgpanel:withdraw";
+  | "orgpanel:withdraw"
+  | "orgpanel:recruitPlayer"
+  | "orgpanel:banMember"
+  | "orgpanel:updateFarmConfig";
 
 type NuiEventResult<T extends NuiEvents> =
   T extends "orgpanel:getMyOrgInfo" ? OrgInfo | null
