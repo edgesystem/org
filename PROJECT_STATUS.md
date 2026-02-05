@@ -1,33 +1,56 @@
-# Status do Projeto - Painel de Organização FiveM
+# PROJECT STATUS - ORG PANEL (05/02/2026)
 
-## Estrutura de Pastas
-- `/client`: Scripts client-side (Lua).
-- `/server`: Scripts server-side (Lua).
-- `/nui`: Frontend React/Vite.
-- `/sql`: Migrações e estrutura do banco de dados.
+## Arquitetura Atual
 
-## Banco de Dados (Tabelas Principais)
-- `players`: Dados dos jogadores (citizenid, charinfo, job, gang, money).
-- `org_accounts`: Saldo bancário das organizações.
-- `org_transactions`: Histórico de depósitos e saques.
-- `org_farm_progress`: Registro de entregas/progresso diário de farm.
-- `org_farm_settings`: Configurações de metas e recompensas por org.
-- `org_bans`: Membros banidos das organizações.
+- Resource: org_panel
+- Frontend: React/Vite → build em web/build ou nui/build
+- Backend: Lua (ox_lib callbacks) + oxmysql
+- Banco: players (real), tokyo_qjobsystem (JSON jobs/gangs), tabelas custom org_*
 
-## Endpoints (NUI Callbacks / Server Callbacks)
-- `orgpanel:getMyOrgInfo`: Retorna dados da org do jogador (nome, cargo, permissões).
-- `orgpanel:getMembers`: Lista membros (online/offline) filtrados pela org.
-- `orgpanel:getTransactions`: Histórico financeiro.
-- `orgpanel:getFarmConfig`: Metas e valores de recompensa.
-- `orgpanel:getMyFarmProgress`: Progresso atual do jogador logado.
-- `orgpanel:claimFarmReward`: Resgate da recompensa de farm.
+## Dados Reais (fontes confiáveis)
 
-## Estado de Mock (Frontend)
-- **Atualmente Mockado:** Saldo total, lista de membros, transações, progresso de farm, lista de bans.
-- **Em Transição:** Integração com `useOrgData` para centralizar chamadas `fetchNui`.
+- players.citizenid → ID único
+- players.charinfo → firstname, lastname (nome), possivelmente mugshot_url em metadata
+- players.job / players.gang → JSON com name, label, grade.level, grade.name, isboss, bankAuth
+- tokyo_qjobsystem → JSON array compartilhado (labels, grades completos)
+- org_accounts → saldo da org (balance)
+- org_transactions → extrato (entrada/saque)
+- org_farm_progress → progresso diário por player/org/date
 
-## Lacunas e Próximos Passos
-- Implementar `FarmProgressArc` real com SVG dinâmico.
-- Sincronizar `mugshot_url` para fotos dos membros.
-- Validar permissões `isboss` no servidor para ações críticas.
-- Corrigir cálculo de `potentialReward` no backend.
+## Endpoints Implementados (server/main.lua)
+
+- orgpanel:getMyOrgInfo → orgName, label, balance, myGrade, isBoss, bankAuth
+- orgpanel:getFarmConfig → dailyGoal, rewardPerUnit, rewardFixed, itemsAllowed
+- orgpanel:getMyFarmProgress → currentQuantity, rewardClaimed, potentialReward
+- orgpanel:claimFarmReward → coleta, debita org_accounts, credita player.bank
+- orgpanel:getMembers → citizenid, firstname, lastname, grade, online, playtime (parcial)
+- orgpanel:getTransactions → extrato real
+- orgpanel:deposit / withdraw → real, com permissão bankAuth
+- orgpanel:changeMemberGrade / recruitPlayer / banMember / unbanMember → real, com permissão boss
+
+## O que ainda é MOCKADO (prioridade para matar)
+
+- Lista de membros: online = false, deliveries/recruited = 0, rank fixo
+- Farm ranking: vazio ou fake
+- Recruitment stats: fake
+- Foto do player: não puxada (precisa mugshot_url)
+- Atualização automática após ações (deposit, claim, etc.) → precisa refresh manual ou evento
+
+## Plano de Ataque Imediato (ordem sugerida)
+
+1. Testar conexão: /testorg → ver se retorna JSON real do backend
+2. Implementar hook useOrgData no React (carregar tudo na mount + refresh após ações)
+3. Ligar FarmProgressArc ao getMyFarmProgress + getFarmConfig
+4. Adicionar mugshot na lista de membros (metadata.mugshot_url)
+5. Enriquecer getMembers com: grade real (tokyo_qjobsystem), online (GetQBPlayers), deliveries (COUNT org_farm_deliveries)
+6. Remover mocks restantes em Dashboard, Farms, Recruitment
+7. Adicionar polling ou evento para atualizar progresso farm em tempo real (se necessário)
+
+## Riscos / Gambiarras a evitar
+
+- Cálculo de prêmio no client → sempre no server (anti-cheat)
+- Confiar em client para validar saldo da org → sempre server
+- Não validar isboss/bankAuth → brecha grave
+- Não logar ações → impossível auditar depois
+
+Próximo passo: rodar /testorg e colar o output aqui.
