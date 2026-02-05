@@ -72,7 +72,7 @@ export default function App() {
   const [slotLimitInfo, setSlotLimitInfo] = useState({ rank: "", currentCount: 0, limit: 0 });
   const [leaderMessage, setLeaderMessage] = useState<string | null>(null);
 
-  // Listen for NUI messages
+  // Listen for NUI messages and keyboard events
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
@@ -85,9 +85,30 @@ export default function App() {
       }
     };
 
+    // Handle ESC key to close panel
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        console.log('[org_panel] ESC pressed, closing panel');
+        closePanel();
+      }
+    };
+
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [refreshData]);
+
+  // Close panel function
+  const closePanel = () => {
+    setIsVisible(false);
+    fetch(`https://${window.GetParentResourceName?.() || 'nui-dev'}/close`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }).catch(console.error);
+  };
 
   // Don't render anything if not visible
   if (!isVisible) {
@@ -209,8 +230,8 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
-      <div className="w-[1280px] h-[720px] bg-black relative overflow-hidden rounded-[20px] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto">
+    <div className="fixed inset-0 flex items-center justify-center pointer-events-none p-4">
+      <div className="w-full max-w-[90vw] max-h-[90vh] bg-black relative overflow-hidden rounded-[20px] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto flex flex-col" style={{ maxWidth: '1280px', maxHeight: '90vh' }}>
         <style>{`
           .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
@@ -226,8 +247,8 @@ export default function App() {
             background: rgba(161, 18, 18, 0.6);
           }
         `}</style>
-        {/* Background image */}
-      <div className="fixed inset-0 z-0">
+        {/* Background overlay */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920&h=1080&fit=crop"
           alt="Background"
@@ -247,8 +268,8 @@ export default function App() {
       />
 
       {/* Scrollable Content Area */}
-      <div className="relative z-10 pt-[334px] h-[720px]">
-        <div className="px-8 pt-[30px] pb-16 h-full overflow-y-auto custom-scrollbar">
+      <div className="relative z-10 flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pt-[30px] pb-16">
           {activeTab === "INÍCIO" && (
             <Dashboard
               onDeliverGoal={handleDeliverGoal}

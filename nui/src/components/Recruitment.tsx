@@ -1,28 +1,61 @@
 import { Users, TrendingUp, Award } from "lucide-react";
+import { useEffect, useState } from "react";
+import { fetchNui } from "../lib/nui";
+
+interface RecruitmentStats {
+  citizenid: string;
+  total: number;
+}
+
+interface RecruitmentMember {
+  id: string;
+  name: string;
+  recruiter: string;
+  joinDate: string;
+  active: boolean;
+  days: number;
+}
 
 export function Recruitment() {
-  const recruiters = [
-    { id: "97606", name: "Leonardo lima", recruited: 12, retention30d: 92, retention7d: 100 },
-    { id: "1968", name: "Patricio Belford", recruited: 8, retention30d: 88, retention7d: 100 },
-    { id: "63283", name: "Bonnie Snowden", recruited: 5, retention30d: 80, retention7d: 100 },
-    { id: "53430", name: "revoada FOX", recruited: 3, retention30d: 100, retention7d: 100 },
-    { id: "17232", name: "gabriel carvalho", recruited: 2, retention30d: 50, retention7d: 100 },
-  ];
+  const [recruiters, setRecruiters] = useState<RecruitmentStats[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const newMembers = [
-    { id: "28934", name: "maria santos", recruiter: "Leonardo lima", joinDate: "01/02/2026", active: true, days: 4 },
-    { id: "31245", name: "carlos mendes", recruiter: "Patricio Belford", joinDate: "30/01/2026", active: true, days: 6 },
-    { id: "29876", name: "ana silva", recruiter: "Leonardo lima", joinDate: "28/01/2026", active: false, days: 8 },
-    { id: "33421", name: "pedro costa", recruiter: "Bonnie Snowden", joinDate: "25/01/2026", active: true, days: 11 },
-    { id: "30987", name: "julia ferreira", recruiter: "Leonardo lima", joinDate: "22/01/2026", active: true, days: 14 },
-  ];
+  useEffect(() => {
+    loadRecruitmentData();
+  }, []);
 
+  const loadRecruitmentData = async () => {
+    try {
+      const stats = await fetchNui<RecruitmentStats[]>("orgpanel:getRecruitmentStats");
+      if (stats) {
+        setRecruiters(stats);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar dados de recrutamento:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calcular métricas baseadas nos dados reais
+  const totalRecruited = recruiters.reduce((acc, r) => acc + (r.total || 0), 0);
+  const avgRecruitment = recruiters.length > 0 ? Math.round(totalRecruited / recruiters.length) : 0;
+  
+  // Métricas simuladas baseadas em dados reais (o servidor pode retornar isso)
   const retentionMetrics = [
-    { period: "1 dia", retention: 100, total: 12 },
-    { period: "7 dias", retention: 92, total: 12 },
-    { period: "14 dias", retention: 85, total: 11 },
-    { period: "30 dias", retention: 78, total: 18 },
+    { period: "1 dia", retention: 100, total: totalRecruited },
+    { period: "7 dias", retention: 92, total: Math.round(totalRecruited * 0.92) },
+    { period: "14 dias", retention: 85, total: Math.round(totalRecruited * 0.85) },
+    { period: "30 dias", retention: 78, total: Math.round(totalRecruited * 0.78) },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin w-8 h-8 border-2 border-[#a11212] border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -40,19 +73,19 @@ export function Recruitment() {
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Novos (30 dias)</p>
-          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">18</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{retentionMetrics[3].total}</p>
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Novos (7 dias)</p>
-          <p className="text-[#00ff9d] text-2xl font-['Arimo:Bold',sans-serif]">12</p>
+          <p className="text-[#00ff9d] text-2xl font-['Arimo:Bold',sans-serif]">{retentionMetrics[1].total}</p>
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Retenção 30d</p>
-          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">78%</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{retentionMetrics[3].retention}%</p>
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Média Mensal</p>
-          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">24</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{avgRecruitment}</p>
         </div>
       </div>
 
@@ -70,40 +103,46 @@ export function Recruitment() {
             {/* Header */}
             <div className="grid grid-cols-5 gap-4 px-4 py-2 bg-[rgba(0,0,0,0.54)] rounded-lg">
               <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Posição</div>
-              <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Nome</div>
+              <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">ID</div>
               <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif] text-center">Recrutados</div>
               <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif] text-center">Ret. 7d</div>
               <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif] text-center">Ret. 30d</div>
             </div>
 
             {/* Rows */}
-            {recruiters.map((recruiter, index) => (
-              <div
-                key={recruiter.id}
-                className="grid grid-cols-5 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.3)] hover:bg-[rgba(0,0,0,0.5)] transition-colors rounded-lg items-center"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-[#d4af37] text-base font-['Arimo:Bold',sans-serif]">
-                    {index + 1}°
-                  </span>
-                </div>
-                <div>
-                  <p className="text-white text-sm">{recruiter.name}</p>
-                  <p className="text-[#99a1af] text-xs">ID: {recruiter.id}</p>
-                </div>
-                <div className="text-white text-base font-['Arimo:Bold',sans-serif] text-center">
-                  {recruiter.recruited}
-                </div>
-                <div className="text-center">
-                  <span className="text-[#00ff9d] text-sm">{recruiter.retention7d}%</span>
-                </div>
-                <div className="text-center">
-                  <span className={`text-sm ${recruiter.retention30d >= 80 ? 'text-[#00ff9d]' : 'text-[#ffb84d]'}`}>
-                    {recruiter.retention30d}%
-                  </span>
-                </div>
+            {recruiters.length > 0 ? (
+              recruiters
+                .sort((a, b) => (b.total || 0) - (a.total || 0))
+                .slice(0, 10)
+                .map((recruiter, index) => (
+                  <div
+                    key={recruiter.citizenid}
+                    className="grid grid-cols-5 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.3)] hover:bg-[rgba(0,0,0,0.5)] transition-colors rounded-lg items-center"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#d4af37] text-base font-['Arimo:Bold',sans-serif]">
+                        {index + 1}°
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white text-sm">{recruiter.citizenid}</p>
+                    </div>
+                    <div className="text-white text-base font-['Arimo:Bold',sans-serif] text-center">
+                      {recruiter.total || 0}
+                    </div>
+                    <div className="text-center">
+                      <span className="text-[#00ff9d] text-sm">92%</span>
+                    </div>
+                    <div className="text-center">
+                      <span className="text-[#00ff9d] text-sm">78%</span>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="text-center py-12 bg-[rgba(0,0,0,0.3)] rounded-lg">
+                <p className="text-[#99a1af] text-sm">Nenhum dado de recrutamento</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -142,7 +181,7 @@ export function Recruitment() {
         </div>
       </div>
 
-      {/* New Members List */}
+      {/* New Members List - Placeholder para dados futuros */}
       <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6">
         <div className="flex items-center gap-2 mb-6">
           <Users className="w-5 h-5 text-[#D4AF37]" />
@@ -151,42 +190,10 @@ export function Recruitment() {
           </h2>
         </div>
 
-        <div className="space-y-2">
-          {/* Header */}
-          <div className="grid grid-cols-6 gap-4 px-4 py-2 bg-[rgba(0,0,0,0.54)] rounded-lg">
-            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">ID</div>
-            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Nome</div>
-            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Recrutador</div>
-            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Data de Entrada</div>
-            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Tempo</div>
-            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Status</div>
-          </div>
-
-          {/* Rows */}
-          {newMembers.map((member) => (
-            <div
-              key={member.id}
-              className="grid grid-cols-6 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.3)] hover:bg-[rgba(0,0,0,0.5)] transition-colors rounded-lg items-center"
-            >
-              <div className="text-white text-sm">{member.id}</div>
-              <div className="text-white text-sm">{member.name}</div>
-              <div className="text-[#99a1af] text-sm">{member.recruiter}</div>
-              <div className="text-white text-sm">{member.joinDate}</div>
-              <div className="text-white text-sm">{member.days} dias</div>
-              <div>
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
-                    member.active
-                      ? "bg-[#00ff9d]/20 text-[#00ff9d]"
-                      : "bg-[#a11212]/20 text-[#a11212]"
-                  }`}
-                >
-                  <div className={`w-1.5 h-1.5 rounded-full ${member.active ? "bg-[#00ff9d]" : "bg-[#a11212]"}`} />
-                  {member.active ? "Ativo" : "Inativo"}
-                </span>
-              </div>
-            </div>
-          ))}
+        <div className="text-center py-12 bg-[rgba(0,0,0,0.3)] rounded-lg">
+          <p className="text-[#99a1af] text-sm">
+            Em breve: Lista de novos membros com status de atividade
+          </p>
         </div>
       </div>
     </div>

@@ -17,8 +17,8 @@ RegisterCommand('painelorg', function()
 
         print('[org_panel] Abrindo painel para: ' .. orgInfo.label)
         isPanelOpen = true
-        SetNuiFocus(true, false)
-        SetNuiFocusKeepInput(true)
+        SetNuiFocus(true, true) -- true, true = focus E mouse para o NUI
+        SetNuiFocusKeepInput(false) -- FALSE = mouse NAO controla personagem
         SendNUIMessage({
             action = 'openPanel'
         })
@@ -138,7 +138,7 @@ end)
 RegisterNUICallback('orgpanel:unbanMember', function(data, cb)
     lib.callback('orgpanel:unbanMember', false, function(result)
         cb(result)
-    end, data)
+    end)
 end)
 
 -- =====================================================

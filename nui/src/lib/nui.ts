@@ -2,24 +2,36 @@ import type { OrgInfo, FarmConfig, FarmProgress, ClaimFarmRewardResponse, BankOp
 
 type NuiEvents =
   | "orgpanel:getMyOrgInfo"
+  | "orgpanel:getOverview"
   | "orgpanel:getFarmConfig"
   | "orgpanel:getMyFarmProgress"
   | "orgpanel:claimFarmReward"
   | "orgpanel:getMembers"
+  | "orgpanel:getFarmRanking"
   | "orgpanel:getTransactions"
+  | "orgpanel:getRecruitmentStats"
   | "orgpanel:getBannedMembers"
   | "orgpanel:deposit"
   | "orgpanel:withdraw"
+  | "orgpanel:changeMemberGrade"
   | "orgpanel:recruitPlayer"
   | "orgpanel:banMember"
+  | "orgpanel:unbanMember"
   | "orgpanel:updateFarmConfig";
+
+type RecruitmentStats = { citizenid: string; total: number }[];
 
 type NuiEventResult<T extends NuiEvents> =
   T extends "orgpanel:getMyOrgInfo" ? OrgInfo | null
+    : T extends "orgpanel:getOverview" ? { orgName: string; label: string; balance: number; onlineCount: number; totalMembers: number; rating: number; ratingCount: number; myGrade: number; myGradeName: string } | null
     : T extends "orgpanel:getFarmConfig" ? FarmConfig | null
     : T extends "orgpanel:getMyFarmProgress" ? FarmProgress | null
     : T extends "orgpanel:claimFarmReward" ? ClaimFarmRewardResponse
+    : T extends "orgpanel:getFarmRanking" ? { rank: number; citizenid: string; name: string; total: number }[] | null
+    : T extends "orgpanel:getRecruitmentStats" ? RecruitmentStats
     : T extends "orgpanel:deposit" | "orgpanel:withdraw" ? BankOperationResponse
+    : T extends "orgpanel:changeMemberGrade" ? { success: boolean; message?: string }
+    : T extends "orgpanel:banMember" | "orgpanel:unbanMember" | "orgpanel:updateFarmConfig" ? { success: boolean; message?: string }
     : any;
 
 export async function fetchNui<T extends NuiEvents>(
@@ -44,4 +56,3 @@ export async function fetchNui<T extends NuiEvents>(
 
   return (await resp.json()) as NuiEventResult<T>;
 }
-
