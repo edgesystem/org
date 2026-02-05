@@ -1,6 +1,7 @@
 import React from "react";
+import { Button } from "./ui/button";
 
-interface Props {
+interface FarmProgressArcProps {
   dailyGoal: number;
   currentQuantity: number;
   potentialReward: number;
@@ -8,89 +9,80 @@ interface Props {
   onClaim: () => void;
 }
 
-export const FarmProgressArc: React.FC<Props> = ({
+export const FarmProgressArc: React.FC<FarmProgressArcProps> = ({
   dailyGoal,
   currentQuantity,
   potentialReward,
   rewardClaimed,
   onClaim,
 }) => {
-  const radius = 56;
+  const radius = 80;
   const circumference = 2 * Math.PI * radius;
-  const progress = dailyGoal > 0 ? Math.min(currentQuantity / dailyGoal, 1) : 0;
-  const dash = `${progress * circumference} ${circumference}`;
+  
+  // Progresso total da meta
+  const totalProgress = Math.min(currentQuantity / Math.max(dailyGoal, 1), 1);
+  const totalOffset = circumference - totalProgress * circumference;
 
-  let color = "#00ff9d";
-  if (progress < 0.33) color = "#a11212";
-  else if (progress < 0.66) color = "#ffb84d";
+  // Cor dinâmica baseada no progresso
+  const getProgressColor = () => {
+    if (totalProgress < 0.3) return "#22c55e"; // Verde
+    if (totalProgress < 0.6) return "#eab308"; // Amarelo
+    if (totalProgress < 0.9) return "#f97316"; // Laranja
+    return "#ef4444"; // Vermelho
+  };
 
   return (
-    <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6 space-y-4">
-      <h2 className="text-white text-lg font-['Arimo:Bold',sans-serif] mb-2">
-        Meta diária de farm
-      </h2>
-
-      <div className="flex items-center gap-6">
-        <div className="relative w-32 h-32">
-          <svg className="w-full h-full transform -rotate-90">
-            <circle
-              cx="64"
-              cy="64"
-              r={radius}
-              stroke="rgba(161,18,18,0.2)"
-              strokeWidth="8"
-              fill="none"
-            />
-            <circle
-              cx="64"
-              cy="64"
-              r={radius}
-              stroke={color}
-              strokeWidth="8"
-              fill="none"
-              strokeDasharray={dash}
-              className="transition-all duration-300"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-white text-3xl font-['Arimo:Bold',sans-serif]">
-              {currentQuantity}
-            </span>
-            <span className="text-[#99a1af] text-sm">/ {dailyGoal}</span>
-          </div>
+    <div className="flex flex-col items-center justify-center p-6 bg-zinc-900/50 rounded-xl border border-white/10">
+      <div className="relative w-48 h-48">
+        <svg className="w-full h-full transform -rotate-90">
+          {/* Arco Externo (Meta Total) */}
+          <circle
+            cx="96"
+            cy="96"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth="12"
+            fill="transparent"
+            className="text-zinc-800"
+          />
+          {/* Arco Interno (Progresso Atual) */}
+          <circle
+            cx="96"
+            cy="96"
+            r={radius}
+            stroke={getProgressColor()}
+            strokeWidth="12"
+            strokeDasharray={circumference}
+            strokeDashoffset={totalOffset}
+            strokeLinecap="round"
+            fill="transparent"
+            className="transition-all duration-1000 ease-out"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white rotate-0">
+          <span className="text-2xl font-bold">{currentQuantity}</span>
+          <span className="text-xs text-zinc-400 uppercase tracking-widest border-t border-white/10 mt-1 pt-1">
+            Meta: {dailyGoal}
+          </span>
         </div>
+      </div>
 
-        <div className="flex-1 space-y-2">
-          <p className="text-[#99a1af] text-sm">
-            Progresso atual:{" "}
-            <span className="text-white font-['Arimo:Bold',sans-serif]">
-              {currentQuantity} unidades
-            </span>
-          </p>
-          <p className="text-[#99a1af] text-sm">
-            Se completar agora, você receberá:{" "}
-            <span className="text-[#00ff9d] font-['Arimo:Bold',sans-serif]">
-              R$ {potentialReward.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-            </span>
-          </p>
-
-          {!rewardClaimed && currentQuantity >= dailyGoal && (
-            <button
-              onClick={onClaim}
-              className="mt-2 bg-[#00ff9d]/20 hover:bg-[#00ff9d]/30 border border-[#00ff9d]/40 transition-colors rounded-lg px-4 py-2 text-[#00ff9d] text-sm font-['Arimo:Bold',sans-serif]"
-            >
-              Coletar recompensa
-            </button>
-          )}
-
-          {rewardClaimed && (
-            <p className="text-[#00ff9d] text-xs mt-1">
-              Recompensa de hoje já coletada.
-            </p>
-          )}
-        </div>
+      <div className="mt-6 text-center">
+        <p className="text-zinc-400 text-sm mb-1">Se completar agora:</p>
+        <p className="text-white text-xl font-bold">R$ {potentialReward.toLocaleString('pt-BR')},00</p>
+        
+        <Button
+          onClick={onClaim}
+          disabled={rewardClaimed || currentQuantity < dailyGoal}
+          className={`mt-4 w-full h-12 uppercase font-bold tracking-widest transition-all ${
+            rewardClaimed 
+              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed" 
+              : "bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+          }`}
+        >
+          {rewardClaimed ? "Coletado" : "Coletar Recompensa"}
+        </Button>
       </div>
     </div>
   );
 };
-

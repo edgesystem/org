@@ -1,0 +1,80 @@
+Você está trabalhando em um painel de organização para GTA RP FiveM (QBCore + ox_lib + oxmysql + ox_inventory).
+
+O painel já tem:
+- UI React/Vite quase pronta (com mocks pesados)
+- Backend Lua (server/main.lua) com vários callbacks orgpanel:* implementados
+- SQL com tabelas novas (org_accounts, org_transactions, org_farm_progress, org_farm_settings, org_bans, etc.)
+
+Estado atual:
+- Backend lê players.job/gang JSON para identificar org_name, grade, isboss, bankAuth
+- Usa tokyo_qjobsystem (array JSON enorme) para mapear label, nomes de cargos, permissões
+- Tem callbacks de leitura (getOverview, getMembers, getTransactions, etc.) e escrita (deposit, withdraw, changeMemberGrade, recruitPlayer, banMember, unbanMember)
+- Tem helpers: GetOrgName(source), HasOrgPermission(source, 'boss'|'bank'|'recruit'), LogOrgAction
+- Client Lua registra NUI callbacks que chamam lib.callback para os mesmos nomes
+- NUI ainda usa estados mockados (arrays fixos de members, transactions, farm progress, etc.)
+- Componente de meta diária (arco vermelho 0/2000) já existe na UI
+- Novo requisito: reaproveitar esse arco e evoluir para FarmProgressArc (arco externo = meta total, arco interno = progresso do jogador, cor dinâmica, prêmio potencial abaixo atualizando em real-time)
+
+Dados reais disponíveis:
+1. Tabela players
+   - citizenid (PK)
+   - charinfo (JSON): {"firstname":"Thug","lastname":"Develops",...} → nome + possivelmente mugshot URL
+   - job (JSON): {"name":"police","label":"Policia Militar - RJ","grade":{"level":0,"name":"Aluno PMERJ"},"isboss":false,...}
+   - gang (JSON): {"name":"vanilla","label":"Vanilla","grade":{"level":3,"name":"Linha de Frente"},"isboss":true,...}
+   - money (JSON): {"cash":...,"bank":...}
+   - last_logged_out
+
+2. tokyo_qjobsystem (JSON array compartilhado ou tabela)
+   - Cada entrada tem: job/gang name, label, type (job/gang), grades {level: {name, payment, isboss, bankAuth, isrecruiter}}
+
+Objetivo: 
+- Remover 100% dos mocks no React
+- Usar SOMENTE dados reais (players, tokyo_qjobsystem, org_* tables)
+- Implementar FarmProgressArc reutilizando o círculo existente:
+  - Arco externo fixo = meta total (daily_goal de org_farm_settings)
+  - Arco interno preenchido = quantity atual do dia (org_farm_progress)
+  - Cor interna: verde → amarelo → laranja conforme progresso
+  - Centro: "X / Y"
+  - Abaixo: "Se completar agora: R$ W,00" (calculado: quantity * reward_per_unit ou reward_fixed)
+  - Botão "Coletar recompensa" (chama claimFarmReward)
+- ox_inventory: painel não mexe em itens; só reflete progresso (entrega registrada em org_farm_progress por script externo de farm)
+
+Tarefas que você deve fazer AGORA:
+
+1. Criar documentação em Markdown completa (PROJECT_STATUS.md) para o Replit ler e entender o estado atual:
+   - Estrutura de pastas
+   - Tabelas usadas + campos principais
+   - Endpoints existentes + o que cada um retorna
+   - O que ainda é mockado no frontend
+   - O que já é real (banco, saldo, deposit/withdraw, etc.)
+   - Lacunas (playtime não incrementado, farm deliveries não populado, etc.)
+   - Plano de próximos passos
+
+2. Evoluir o React:
+   - Remover mocks em App.tsx, Dashboard.tsx, Farms.tsx, Members.tsx, Bank.tsx, etc.
+   - Criar/use hook useOrgData que carrega na montagem:
+     - fetchNui('orgpanel:getMyOrgInfo')
+     - fetchNui('orgpanel:getFarmConfig')
+     - fetchNui('orgpanel:getMyFarmProgress')
+     - fetchNui('orgpanel:getMembers')
+     - fetchNui('orgpanel:getTransactions')
+     - fetchNui('orgpanel:getBannedMembers')
+   - Implementar FarmProgressArc.tsx com SVG (arco duplo), animação de progresso, cor dinâmica, cálculo de potentialReward
+   - Ligar botão de coletar → fetchNui('orgpanel:claimFarmReward') → refresh progresso e saldo
+
+3. Ajustar backend Lua se necessário:
+   - Garantir que getMyFarmProgress calcule potentialReward no servidor (quantity * per_unit ou fixed se completou)
+   - Adicionar endpoint orgpanel:updateFarmProgress (opcional, para polling)
+   - Garantir que claimFarmReward valide saldo da org, debite, credite no player.bank, marque reward_claimed
+
+4. Foto do player:
+   - Adicionar campo mugshot_url em players ou metadata
+   - Mostrar na lista de membros (Members.tsx) e no header do painel
+
+Entregue em sequência:
+- Primeiro: o arquivo PROJECT_STATUS.md completo
+- Depois: alterações principais no React (useOrgData hook + FarmProgressArc.tsx + remoção de mocks em App/Dashboard)
+- Depois: ajustes necessários no server/main.lua
+- Por fim: passos para testar e conectar tudo
+
+Seja brutalmente realista: priorize o que já existe (players JSON, tokyo_qjobsystem), crie o mínimo de tabelas novas, e faça o painel funcionar com dados reais sem mocks. Pense em escalabilidade e anti-cheat (nada de confiança no client).

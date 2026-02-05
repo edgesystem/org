@@ -17,6 +17,7 @@ import { EditLeaderMessageModal } from "./components/modals/EditLeaderMessageMod
 import { SlotLimitModal } from "./components/modals/SlotLimitModal";
 import { FarmProgressArc } from "./components/FarmProgressArc";
 import { fetchNui } from "./lib/nui";
+import { useOrgData } from "./hooks/useOrgData";
 import type { OrgInfo, FarmConfig, FarmProgress, ClaimFarmRewardResponse, BankOperationResponse } from "./types/orgpanel";
 
 export type TabType = "INÍCIO" | "MEMBROS" | "FARMS" | "RECRUTAMENTO" | "BANCO" | "PD";
@@ -40,6 +41,19 @@ export interface BlacklistMember {
 }
 
 export default function App() {
+  const {
+    orgInfo,
+    farmConfig,
+    farmProgress,
+    members,
+    transactions,
+    blacklist,
+    loading,
+    refreshData,
+    setMembers,
+    setBlacklist
+  } = useOrgData();
+
   const [activeTab, setActiveTab] = useState<TabType>("INÍCIO");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showRecruitModal, setShowRecruitModal] = useState(false);
@@ -51,34 +65,11 @@ export default function App() {
   const [showEditLeaderMessageModal, setShowEditLeaderMessageModal] = useState(false);
   const [showSlotLimitModal, setShowSlotLimitModal] = useState(false);
   const [bankOperation, setBankOperation] = useState<"deposit" | "withdraw">("deposit");
-  const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
-  const [farmConfig, setFarmConfig] = useState<FarmConfig | null>(null);
-  const [farmProgress, setFarmProgress] = useState<FarmProgress | null>(null);
-  const [bankBalance, setBankBalance] = useState(0);
   const [selectedMemberForBan, setSelectedMemberForBan] = useState<any>(null);
   const [selectedMemberForUnban, setSelectedMemberForUnban] = useState<any>(null);
   const [bannedMemberName, setBannedMemberName] = useState("");
   const [slotLimitInfo, setSlotLimitInfo] = useState({ rank: "", currentCount: 0, limit: 0 });
   const [leaderMessage, setLeaderMessage] = useState("Rádio: 320, 321, 323\nJaqueta: 664 textura25\nCalça: 27a textura\nMochila 22 textura 5");
-  
-  // Members state (carregado da NUI)
-  const [members, setMembers] = useState<any[]>([]);
-  
-  // Blacklist state
-  const [blacklist, setBlacklist] = useState<BlacklistMember[]>([]);
-  
-  // Transactions state
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  
-  // Goal configuration (NUI sobrescreve ao carregar)
-  const [maxGoal, setMaxGoal] = useState(10000);
-  const [pricePerUnit, setPricePerUnit] = useState(200);
-  const [prizes, setPrizes] = useState({
-    first: 5000,
-    second: 3000,
-    third: 2000,
-    others: 500,
-  });
 
   const handleDeliverGoal = () => {
     setShowSuccessModal(true);
@@ -88,50 +79,16 @@ export default function App() {
     setShowRecruitModal(true);
   };
 
-  const confirmRecruit = (playerData: any) => {
-    // Adiciona o novo membro à lista com cargo "Novato"
-    const newMember = {
-      id: playerData.id,
-      name: playerData.name,
-      rank: "Novato",
-      online: playerData.online,
-      deliveries: 0,
-      recruited: 0,
-    };
-    
-    // Ordem hierárquica dos cargos
-    const RANK_HIERARCHY: { [key: string]: number } = {
-      "Líder 00": 0,
-      "Líder 01": 1,
-      "Líder 02": 2,
-      "Supervisor": 3,
-      "Gerente Geral": 4,
-      "Gerente de Farm": 5,
-      "Gerente de Recrutamento": 6,
-      "Gerente da Rota": 7,
-      "Recrutador": 8,
-      "Elite": 9,
-      "Membro Verificado": 10,
-      "Membro": 11,
-      "Novato": 12,
-    };
-
-    // Adiciona e reordena automaticamente
-    const updatedMembers = [...members, newMember];
-    const sortedMembers = updatedMembers.sort((a, b) => {
-      const hierarchyA = RANK_HIERARCHY[a.rank] ?? 999;
-      const hierarchyB = RANK_HIERARCHY[b.rank] ?? 999;
-      
-      // Se estão no mesmo cargo, ordena por deliveries (maior primeiro)
-      if (hierarchyA === hierarchyB) {
-        return b.deliveries - a.deliveries;
+  const confirmRecruit = async (playerData: any) => {
+    try {
+      const resp = await fetchNui("orgpanel:recruitPlayer", { targetId: playerData.id });
+      if (resp.success) {
+        setShowRecruitModal(false);
+        refreshData();
       }
-      
-      return hierarchyA - hierarchyB;
-    });
-
-    setMembers(sortedMembers);
-    setShowRecruitModal(false);
+    } catch (e) {
+      console.error("Erro ao recrutar jogador:", e);
+    }
   };
 
   const handleBanMember = (member: any) => {
@@ -139,27 +96,18 @@ export default function App() {
     setShowBanModal(true);
   };
 
-  const confirmBan = (memberId: string, reason: string, severity: "critical" | "high" | "medium") => {
-    const now = new Date();
-    const date = now.toLocaleDateString('pt-BR');
-    
-    // Create blacklist entry
-    const newBlacklistEntry: BlacklistMember = {
-      id: memberId,
-      name: selectedMemberForBan.name,
-      reason: reason,
-      bannedBy: "Leonardo lima",
-      date: date,
-      severity: severity,
-    };
-    
-    // Add to blacklist
-    setBlacklist([newBlacklistEntry, ...blacklist]);
-    
-    // Store banned member name and show success modal
-    setBannedMemberName(selectedMemberForBan.name);
-    setShowBanModal(false);
-    setShowBanSuccessModal(true);
+  const confirmBan = async (memberId: string, reason: string, severity: "critical" | "high" | "medium") => {
+    try {
+      const resp = await fetchNui("orgpanel:banMember", { citizenid: memberId, reason });
+      if (resp.success) {
+        setBannedMemberName(selectedMemberForBan.name);
+        setShowBanModal(false);
+        setShowBanSuccessModal(true);
+        refreshData();
+      }
+    } catch (e) {
+      console.error("Erro ao banir membro:", e);
+    }
   };
 
   const handleUnbanMember = (member: any) => {
@@ -180,39 +128,6 @@ export default function App() {
     setShowEditLeaderMessageModal(true);
   };
 
-  const reloadBankData = async () => {
-    try {
-      const [info, tx] = await Promise.all([
-        fetchNui("orgpanel:getMyOrgInfo"),
-        fetchNui("orgpanel:getTransactions"),
-      ]);
-      if (info) {
-        setOrgInfo(info as OrgInfo);
-        setBankBalance((info as OrgInfo).balance);
-      }
-      if (Array.isArray(tx)) {
-        const mapped: Transaction[] = (tx as any[]).map((row, idx) => {
-          const created = row.created_at ? new Date(row.created_at) : new Date();
-          const date = created.toLocaleDateString("pt-BR");
-          const time = created.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-          const type = row.transaction_type === "entrada" ? "deposit" : "withdraw";
-          const amount = Number(row.amount) || 0;
-          return {
-            id: String(row.id ?? `TRX-${idx + 1}`),
-            type,
-            description: row.description ?? "",
-            amount: type === "deposit" ? amount : -amount,
-            date,
-            time,
-          };
-        });
-        setTransactions(mapped);
-      }
-    } catch (e) {
-      console.error("Erro ao recarregar dados bancários", e);
-    }
-  };
-
   const confirmBankOperation = async (
     amount: number,
     memberName: string,
@@ -228,26 +143,17 @@ export default function App() {
         resp = (await fetchNui("orgpanel:withdraw", { amount, description })) as BankOperationResponse;
       }
 
-      if (!resp.success) {
-        console.warn(resp.message);
-        return;
+      if (resp.success) {
+        refreshData();
+        setShowBankModal(false);
       }
-
-      if (typeof resp.newBalance === "number") {
-        setBankBalance(resp.newBalance);
-      }
-
-      await reloadBankData();
-      setShowBankModal(false);
     } catch (e) {
       console.error("Erro na operação bancária", e);
     }
   };
 
-  const confirmEditGoal = (goalAmount: number, pricePerUnit: number, newPrizes: any) => {
-    setMaxGoal(goalAmount);
-    setPricePerUnit(pricePerUnit);
-    setPrizes(newPrizes);
+  const confirmEditGoal = async (goalAmount: number, pricePerUnit: number, newPrizes: any) => {
+    // Implementar callback de edição de meta se necessário no backend
     setShowEditGoalModal(false);
   };
 
@@ -256,96 +162,18 @@ export default function App() {
     setShowEditLeaderMessageModal(false);
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [info, cfg, prog, tx, membersRes, bansRes] = await Promise.all([
-          fetchNui("orgpanel:getMyOrgInfo"),
-          fetchNui("orgpanel:getFarmConfig"),
-          fetchNui("orgpanel:getMyFarmProgress"),
-          fetchNui("orgpanel:getTransactions"),
-          fetchNui("orgpanel:getMembers"),
-          fetchNui("orgpanel:getBannedMembers"),
-        ]);
-
-        if (info) {
-          setOrgInfo(info as OrgInfo);
-          setBankBalance((info as OrgInfo).balance);
-        }
-        if (cfg) {
-          const c = cfg as FarmConfig;
-          setFarmConfig(c);
-          setMaxGoal(c.dailyGoal);
-          if (c.rewardType === "per_unit") {
-            setPricePerUnit(c.rewardPerUnit);
-          }
-        }
-        if (prog) {
-          setFarmProgress(prog as FarmProgress);
-        }
-        if (Array.isArray(tx)) {
-          const mapped: Transaction[] = (tx as any[]).map((row, idx) => {
-            const created = row.created_at ? new Date(row.created_at) : new Date();
-            const date = created.toLocaleDateString("pt-BR");
-            const time = created.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-            const type = row.transaction_type === "entrada" ? "deposit" : "withdraw";
-            const amount = Number(row.amount) || 0;
-            return {
-              id: String(row.id ?? `TRX-${idx + 1}`),
-              type,
-              description: row.description ?? "",
-              amount: type === "deposit" ? amount : -amount,
-              date,
-              time,
-            };
-          });
-          setTransactions(mapped);
-        }
-        if (Array.isArray(membersRes)) {
-          const mappedMembers = (membersRes as any[]).map((m) => ({
-            id: String(m.citizenid),
-            name: m.name || "Desconhecido",
-            rank: "Membro",
-            online: false,
-            deliveries: 0,
-            recruited: 0,
-          }));
-          setMembers(mappedMembers);
-        }
-        if (Array.isArray(bansRes)) {
-          const mappedBans: BlacklistMember[] = (bansRes as any[]).map((b) => ({
-            id: String(b.banned_citizenid),
-            name: String(b.banned_citizenid),
-            reason: b.reason || "Sem motivo informado",
-            bannedBy: String(b.banned_by),
-            date: b.banned_at ? new Date(b.banned_at).toLocaleDateString("pt-BR") : "",
-            severity: "medium",
-          }));
-          setBlacklist(mappedBans);
-        }
-      } catch (e) {
-        console.error("Erro ao carregar dados iniciais do painel", e);
-      }
-    })();
-  }, []);
-
   const handleClaimFarmReward = async () => {
     try {
       const res = (await fetchNui("orgpanel:claimFarmReward")) as ClaimFarmRewardResponse;
-      if (!res.success) {
-        console.warn(res.message);
-        return;
-      }
-      if (typeof res.newBalance === "number") {
-        setBankBalance(res.newBalance);
-      }
-      if (res.progress) {
-        setFarmProgress(res.progress);
+      if (res.success) {
+        refreshData();
       }
     } catch (e) {
       console.error("Erro ao coletar recompensa de farm", e);
     }
   };
+
+  if (loading) return null;
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -363,7 +191,7 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        bankBalance={bankBalance}
+        bankBalance={orgInfo?.balance ?? 0}
       />
 
       {/* Scrollable Content Area */}
@@ -374,13 +202,13 @@ export default function App() {
               onDeliverGoal={handleDeliverGoal}
               onEditGoal={handleEditGoal}
               onEditLeaderMessage={handleEditLeaderMessage}
-              maxGoal={maxGoal}
-              pricePerUnit={pricePerUnit}
-              prizes={prizes}
+              maxGoal={farmConfig?.dailyGoal ?? 0}
+              pricePerUnit={farmConfig?.rewardPerUnit ?? 0}
+              prizes={{ first: 0, second: 0, third: 0, others: 0 }}
               leaderMessage={leaderMessage}
               members={members}
               FarmProgressComponent={
-                farmProgress && farmConfig ? (
+                farmProgress ? (
                   <FarmProgressArc
                     dailyGoal={farmProgress.dailyGoal}
                     currentQuantity={farmProgress.currentQuantity}
@@ -409,7 +237,7 @@ export default function App() {
           {activeTab === "RECRUTAMENTO" && <Recruitment />}
           {activeTab === "BANCO" && (
             <Bank
-              balance={bankBalance}
+              balance={orgInfo?.balance ?? 0}
               transactions={transactions}
               onDeposit={() => handleBankOperation("deposit")}
               onWithdraw={() => handleBankOperation("withdraw")}

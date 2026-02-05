@@ -204,30 +204,55 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
 
     local rows = MySQL.query.await([[
         SELECT op.citizenid, op.playtime, op.join_date, op.last_updated,
-               p.charinfo
+               p.charinfo, p.metadata
         FROM org_playtime op
         LEFT JOIN players p ON p.citizenid = op.citizenid
         WHERE op.org_name = ?
         ORDER BY op.playtime DESC
     ]], { orgData.name })
 
-    if not rows then return {} end
+    if (not rows) then return {} end
 
     local members = {}
     for _, row in ipairs(rows) do
         local name = 'Desconhecido'
+        local mugshot = nil
         if row.charinfo then
             local info = type(row.charinfo) == 'string' and json.decode(row.charinfo) or row.charinfo
             if info and (info.firstname or info.lastname) then
                 name = (info.firstname or '') .. ' ' .. (info.lastname or '')
             end
         end
+        
+        if row.metadata then
+            local meta = type(row.metadata) == 'string' and json.decode(row.metadata) or row.metadata
+            mugshot = meta and meta.mugshot_url or nil
+        end
+
+        -- Tenta pegar o cargo real do QBCore se o player estiver online
+        local TargetPlayer = QBCore.Functions.GetPlayerByCitizenId(row.citizenid)
+        local gradeName = 'Membro'
+        local online = false
+        if TargetPlayer then
+            online = true
+            local job = TargetPlayer.PlayerData.job
+            local gang = TargetPlayer.PlayerData.gang
+            if gang and gang.name == orgData.name then
+                gradeName = gang.grade.name
+            elseif job and job.name == orgData.name then
+                gradeName = job.grade.name
+            end
+        end
+
         members[#members + 1] = {
             citizenid = row.citizenid,
             name = name:gsub('^%s+', ''):gsub('%s+$', ''),
             playtime = row.playtime or 0,
             join_date = row.join_date,
-            last_updated = row.last_updated
+            last_updated = row.last_updated,
+            mugshot_url = mugshot,
+            gradeName = gradeName,
+            online = online
         }
     end
     return members
