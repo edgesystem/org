@@ -21,51 +21,40 @@ interface DashboardProps {
 export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxGoal, pricePerUnit, prizes, leaderMessage, members, FarmProgressComponent }: DashboardProps) {
   const [goalAmount, setGoalAmount] = useState(0);
 
-  // Calcular dias restantes até o fim do mês
   const today = new Date();
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const daysUntilEndOfMonth = Math.ceil((lastDayOfMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Filtrar líderes da lista de membros (Líder 00, Líder 01, Líder 02)
   const leaders = members
     .filter(member => 
-      member.rank === "Líder 00" || 
-      member.rank === "Líder 01" || 
-      member.rank === "Líder 02"
-    )
-    .sort((a, b) => {
-      // Ordenar por hierarquia: Líder 00 primeiro, depois 01, depois 02
-      const rankOrder: { [key: string]: number } = {
-        "Líder 00": 0,
-        "Líder 01": 1,
-        "Líder 02": 2,
-      };
-      return rankOrder[a.rank] - rankOrder[b.rank];
-    });
+      member.rank.toLowerCase().includes("líder") || 
+      member.rank.toLowerCase().includes("lider")
+    );
 
-  // Simular dados mensais dos membros (em produção, isso viria do banco de dados)
-  const monthlyFarmData = members.map(member => ({
-    ...member,
-    monthlyFarms: Math.floor(Math.random() * 5000) + 1000, // Farms acumulados no mês
-  })).sort((a, b) => b.monthlyFarms - a.monthlyFarms);
+  const farmRanking = [...members]
+    .sort((a, b) => (b.deliveries || 0) - (a.deliveries || 0))
+    .slice(0, 5)
+    .map((m, i) => ({
+      position: i + 1,
+      name: m.name,
+      amount: m.deliveries || 0,
+      trend: "",
+      trendUp: false
+    }));
 
-  // Top 3 do mês
-  const topMonthly = monthlyFarmData.slice(0, 3);
+  const timeRanking = [...members]
+    .sort((a, b) => (b.playtime || 0) - (a.playtime || 0))
+    .slice(0, 5)
+    .map((m, i) => ({
+      position: i + 1,
+      id: m.id,
+      name: m.name,
+      time: `${Math.floor((m.playtime || 0) / 60)}h ${Math.floor((m.playtime || 0) % 60)}min`
+    }));
 
-  // Rankings estáticos (em produção, viriam do banco de dados)
-  const farmRanking = [
-    { position: 1, name: "Florian Iue", amount: 328, trend: "+2", trendUp: true },
-    { position: 2, name: "kevyn soares", amount: 308, trend: "", trendUp: false },
-    { position: 3, name: "alejandro miguel", amount: 186, trend: "", trendUp: false },
-  ];
-
-  const timeRanking = [
-    { position: 1, id: "1968", name: "Patricio Belford", time: "689h 53min" },
-    { position: 2, id: "63283", name: "Bonnie Snowden", time: "371h 21min" },
-    { position: 3, id: "53430", name: "revoada FOX", time: "353h 18min" },
-    { position: 4, id: "17232", name: "gabriel carvalho", time: "307h 49min" },
-    { position: 5, id: "59778", name: "kevyn soares", time: "246h 36min" },
-  ];
+  const topMonthly = [...members]
+    .sort((a, b) => (b.monthlyDeliveries || 0) - (a.monthlyDeliveries || 0))
+    .slice(0, 3);
 
   return (
     <div className="grid grid-cols-3 gap-6">

@@ -7,22 +7,23 @@ interface HeaderProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   bankBalance: number;
+  membersOnline: number;
+  maxMembers: number;
 }
 
-export function Header({ activeTab, setActiveTab, bankBalance }: HeaderProps) {
+export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, maxMembers }: HeaderProps) {
   const tabs: TabType[] = ["INÍCIO", "MEMBROS", "FARMS", "RECRUTAMENTO", "BANCO", "PD"];
 
   const handleDiscordClick = () => {
-    window.open("https://discord.gg/sua-organizacao", "_blank");
+    fetchNui("orgpanel:openDiscord");
   };
 
   const handleCloseClick = () => {
-    // Aqui você pode adicionar lógica para fechar/minimizar o painel
-    console.log("Fechar painel");
+    fetchNui("orgpanel:close");
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 h-[334px] bg-black">
+    <div className="absolute top-0 left-0 right-0 z-50 h-[334px] bg-black">
       {/* Background header image */}
       <div className="absolute inset-0 h-[277px]">
         <img
@@ -80,7 +81,7 @@ export function Header({ activeTab, setActiveTab, bankBalance }: HeaderProps) {
               </p>
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-white" />
-                <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">9/149</p>
+                <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{membersOnline}/{maxMembers}</p>
               </div>
             </div>
           </div>

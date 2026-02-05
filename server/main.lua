@@ -229,7 +229,6 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
             mugshot = meta and meta.mugshot_url or nil
         end
 
-        -- Tenta pegar o cargo real do QBCore se o player estiver online
         local TargetPlayer = QBCore.Functions.GetPlayerByCitizenId(row.citizenid)
         local gradeName = 'Membro'
         local online = false
@@ -244,6 +243,24 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
             end
         end
 
+        -- Dados extras de farm para a UI
+        local today = os.date('%Y-%m-%d')
+        local daily_total = MySQL.scalar.await('SELECT quantity FROM org_farm_progress WHERE citizenid = ? AND org_name = ? AND date = ?', { row.citizenid, orgData.name, today }) or 0
+        local weekly_total = MySQL.scalar.await('SELECT SUM(quantity) FROM org_farm_progress WHERE citizenid = ? AND org_name = ? AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)', { row.citizenid, orgData.name }) or 0
+        
+        local deliveries_rows = MySQL.query.await('SELECT quantity, created_at FROM org_farm_deliveries WHERE citizenid = ? AND org_name = ? ORDER BY created_at DESC LIMIT 5', { row.citizenid, orgData.name })
+        local recent_deliveries = {}
+        if deliveries_rows then
+            for _, dr in ipairs(deliveries_rows) do
+                table.insert(recent_deliveries, {
+                    amount = dr.quantity,
+                    timestamp = dr.created_at,
+                    date = os.date('%d/%m/%Y', dr.created_at / 1000),
+                    time = os.date('%H:%M', dr.created_at / 1000)
+                })
+            end
+        end
+
         members[#members + 1] = {
             citizenid = row.citizenid,
             name = name:gsub('^%s+', ''):gsub('%s+$', ''),
@@ -252,7 +269,10 @@ lib.callback.register('orgpanel:getMembers', function(source, data)
             last_updated = row.last_updated,
             mugshot_url = mugshot,
             gradeName = gradeName,
-            online = online
+            online = online,
+            dailyTotal = daily_total,
+            weeklyTotal = weekly_total,
+            recentDeliveries = recent_deliveries
         }
     end
     return members
@@ -429,9 +449,54 @@ lib.callback.register('orgpanel:getBannedMembers', function(source)
     return rows or {}
 end)
 
--- =====================================================
--- WRITE CALLBACKS
--- =====================================================
+lib.callback.register('orgpanel:updateFarmConfig', function(source, data)
+    if not HasOrgPermission(source, 'boss') then
+        return { success = false, message = 'Sem permissão.' }
+    end
+    local org = GetPlayerOrgFromDB(source)
+    if not org then return { success = false } end
+
+    MySQL.update.await([[
+        INSERT INTO org_farm_settings (org_name, daily_goal, reward_per_unit, enabled)
+        VALUES (?, ?, ?, 1)
+        ON DUPLICATE KEY UPDATE daily_goal = ?, reward_per_unit = ?
+    ]], { org.orgName, data.dailyGoal, data.rewardPerUnit, data.dailyGoal, data.rewardPerUnit })
+
+    return { success = true }
+end)
+
+lib.callback.register('orgpanel:banMember', function(source, data)
+    if not HasOrgPermission(source, 'boss') then
+        return { success = false, message = 'Sem permissão.' }
+    end
+    local orgData = GetOrgName(source)
+    local Player = QBCore.Functions.GetPlayer(source)
+    
+    MySQL.insert.await('INSERT INTO org_bans (org_name, banned_citizenid, banned_by, reason) VALUES (?, ?, ?, ?)', {
+        orgData.name, data.citizenid, Player.PlayerData.citizenid, data.reason or 'Sem motivo'
+    })
+    
+    local Target = QBCore.Functions.GetPlayerByCitizenId(data.citizenid)
+    if Target then
+        if orgData.type == 'gang' then Target.Functions.SetGang('none', 0)
+        else Target.Functions.SetJob('unemployed', 0) end
+    end
+
+    return { success = true }
+end)
+
+lib.callback.register('orgpanel:unbanMember', function(source, data)
+    if not HasOrgPermission(source, 'boss') then
+        return { success = false, message = 'Sem permissão.' }
+    end
+    local orgData = GetOrgName(source)
+    
+    MySQL.update.await('UPDATE org_bans SET is_active = 0 WHERE org_name = ? AND banned_citizenid = ?', {
+        orgData.name, data.citizenid
+    })
+
+    return { success = true }
+end)
 
 lib.callback.register('orgpanel:deposit', function(source, data)
     local Player = QBCore.Functions.GetPlayer(source)
@@ -606,34 +671,48 @@ lib.callback.register('orgpanel:changeMemberGrade', function(source, data)
     if not orgData then return { success = false, message = 'Você não pertence a uma organização.' } end
 
     local targetCitizenid = data and data.citizenid
-    local newGrade = tonumber(data and data.grade)
-    if not targetCitizenid or not newGrade then
+    local gradeName = data and data.gradeName
+    
+    if not targetCitizenid or not gradeName then
         return { success = false, message = 'Dados inválidos.' }
     end
 
-    local orgConfig = Config.Organizations[orgData.name]
-    if not orgConfig then return { success = false, message = 'Organização não configurada.' } end
+    local newGrade = 0
+    if orgData.type == 'gang' then
+        local gang = QBCore.Shared.Gangs[orgData.name]
+        for level, data in pairs(gang.grades) do
+            if data.name == gradeName then
+                newGrade = tonumber(level)
+                break
+            end
+        end
+    else
+        local job = QBCore.Shared.Jobs[orgData.name]
+        for level, data in pairs(job.grades) do
+            if data.name == gradeName then
+                newGrade = tonumber(level)
+                break
+            end
+        end
+    end
 
     local TargetPlayer = QBCore.Functions.GetPlayerByCitizenId(targetCitizenid)
     if not TargetPlayer then
-        return { success = false, message = 'Jogador não está online.' }
-    end
-
-    if orgData.type == 'gang' then
-        local gang = QBCore.Shared.Gangs[orgData.name]
-        if not gang or not gang.grades[tostring(newGrade)] then
-            return { success = false, message = 'Cargo inválido.' }
+        -- Player offline, atualizar no DB diretamente
+        if orgData.type == 'gang' then
+            MySQL.update.await("UPDATE players SET gang = JSON_SET(gang, '$.grade.level', ?, '$.grade.name', ?) WHERE citizenid = ?", { newGrade, gradeName, targetCitizenid })
+        else
+            MySQL.update.await("UPDATE players SET job = JSON_SET(job, '$.grade.level', ?, '$.grade.name', ?) WHERE citizenid = ?", { newGrade, gradeName, targetCitizenid })
         end
-        TargetPlayer.Functions.SetGang(orgData.name, newGrade)
     else
-        local job = QBCore.Shared.Jobs[orgData.name]
-        if not job or not job.grades[tostring(newGrade)] then
-            return { success = false, message = 'Cargo inválido.' }
+        if orgData.type == 'gang' then
+            TargetPlayer.Functions.SetGang(orgData.name, newGrade)
+        else
+            TargetPlayer.Functions.SetJob(orgData.name, newGrade)
         end
-        TargetPlayer.Functions.SetJob(orgData.name, newGrade)
     end
 
-    LogOrgAction(orgData.name, QBCore.Functions.GetPlayer(source).PlayerData.citizenid, 'change_grade', targetCitizenid, { grade = newGrade })
+    LogOrgAction(orgData.name, QBCore.Functions.GetPlayer(source).PlayerData.citizenid, 'change_grade', targetCitizenid, { grade = newGrade, gradeName = gradeName })
     return { success = true, message = 'Cargo alterado.' }
 end)
 

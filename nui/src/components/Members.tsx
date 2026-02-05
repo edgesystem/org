@@ -93,35 +93,35 @@ export function Members({ onRecruit, onBanMember, blacklist, members, setMembers
     return currentCount < limit;
   };
 
-  const handleRankChange = (memberId: string, newRank: string) => {
-    // Verificar se pode alterar para este cargo
+  const handleRankChange = async (memberId: string, newRank: string) => {
     if (!canChangeRank(memberId, newRank)) {
       const limit = RANK_LIMITS[newRank];
       const currentCount = countMembersByRank(newRank);
-      
       onSlotLimitReached(newRank, currentCount, limit);
       return;
     }
 
-    // Atualiza o cargo e reordena automaticamente por hierarquia
-    const updatedMembers = members.map(m => 
-      m.id === memberId ? { ...m, rank: newRank } : m
-    );
+    try {
+      const resp = await fetchNui("orgpanel:changeMemberGrade", { citizenid: memberId, gradeName: newRank });
+      if (resp.success) {
+        const updatedMembers = members.map(m => 
+          m.id === memberId ? { ...m, rank: newRank } : m
+        );
 
-    // Ordena por hierarquia de cargo (menor número = cargo mais alto)
-    const sortedMembers = updatedMembers.sort((a, b) => {
-      const hierarchyA = RANK_HIERARCHY[a.rank] ?? 999;
-      const hierarchyB = RANK_HIERARCHY[b.rank] ?? 999;
-      
-      // Se estão no mesmo cargo, ordena por deliveries (maior primeiro)
-      if (hierarchyA === hierarchyB) {
-        return b.deliveries - a.deliveries;
+        const sortedMembers = updatedMembers.sort((a, b) => {
+          const hierarchyA = RANK_HIERARCHY[a.rank] ?? 999;
+          const hierarchyB = RANK_HIERARCHY[b.rank] ?? 999;
+          if (hierarchyA === hierarchyB) {
+            return (b.deliveries || 0) - (a.deliveries || 0);
+          }
+          return hierarchyA - hierarchyB;
+        });
+
+        setMembers(sortedMembers);
       }
-      
-      return hierarchyA - hierarchyB;
-    });
-
-    setMembers(sortedMembers);
+    } catch (e) {
+      console.error("Erro ao alterar cargo:", e);
+    }
   };
 
   // Filter members based on search term and blacklist

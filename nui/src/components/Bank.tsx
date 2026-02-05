@@ -19,10 +19,10 @@ interface Transaction {
 
 export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps) {
   const stats = {
-    weeklyIncome: 453000,
-    weeklyExpenses: 87000,
-    monthlyIncome: 1823000,
-    monthlyExpenses: 312000,
+    weeklyIncome: transactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0),
+    weeklyExpenses: Math.abs(transactions.filter(t => t.amount < 0).reduce((acc, t) => acc + t.amount, 0)),
+    monthlyIncome: transactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0),
+    monthlyExpenses: Math.abs(transactions.filter(t => t.amount < 0).reduce((acc, t) => acc + t.amount, 0)),
   };
 
   return (

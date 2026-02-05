@@ -153,8 +153,19 @@ export default function App() {
   };
 
   const confirmEditGoal = async (goalAmount: number, pricePerUnit: number, newPrizes: any) => {
-    // Implementar callback de edição de meta se necessário no backend
-    setShowEditGoalModal(false);
+    try {
+      const resp = await fetchNui("orgpanel:updateFarmConfig", { 
+        dailyGoal: goalAmount, 
+        rewardPerUnit: pricePerUnit,
+        prizes: newPrizes 
+      });
+      if (resp.success) {
+        refreshData();
+        setShowEditGoalModal(false);
+      }
+    } catch (e) {
+      console.error("Erro ao editar meta:", e);
+    }
   };
 
   const confirmEditLeaderMessage = (newMessage: string) => {
@@ -176,8 +187,24 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Background image */}
+    <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+      <div className="w-[1280px] h-[720px] bg-black relative overflow-hidden rounded-[20px] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto">
+        <style>{`
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(161, 18, 18, 0.4);
+            border-radius: 10px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(161, 18, 18, 0.6);
+          }
+        `}</style>
+        {/* Background image */}
       <div className="fixed inset-0 z-0">
         <img
           src="https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920&h=1080&fit=crop"
@@ -192,11 +219,13 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         bankBalance={orgInfo?.balance ?? 0}
+        membersOnline={members.filter(m => m.online).length}
+        maxMembers={149}
       />
 
       {/* Scrollable Content Area */}
-      <div className="relative z-10 pt-[334px] min-h-screen">
-        <div className="px-8 pt-[30px] pb-16 overflow-y-auto" style={{ maxHeight: "calc(100vh - 334px)" }}>
+      <div className="relative z-10 pt-[334px] h-[720px]">
+        <div className="px-8 pt-[30px] pb-16 h-full overflow-y-auto custom-scrollbar">
           {activeTab === "INÍCIO" && (
             <Dashboard
               onDeliverGoal={handleDeliverGoal}
@@ -233,7 +262,7 @@ export default function App() {
               }}
             />
           )}
-          {activeTab === "FARMS" && <Farms />}
+          {activeTab === "FARMS" && <Farms members={members} />}
           {activeTab === "RECRUTAMENTO" && <Recruitment />}
           {activeTab === "BANCO" && (
             <Bank

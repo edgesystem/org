@@ -15,6 +15,7 @@ interface SecurityLog {
 }
 
 export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
+  const [searchTerm, setSearchTerm] = useState("");
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([
     { type: "blocked", message: "Tentativa de recrutamento bloqueada - ID 45678 está na blacklist", time: "14:32", date: "05/02/2026" },
     { type: "warning", message: "Atividade suspeita detectada - múltiplas tentativas de saque", time: "11:20", date: "04/02/2026" },
@@ -22,24 +23,10 @@ export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
     { type: "info", message: "Novo membro adicionado à blacklist - ID 45678", time: "16:30", date: "28/01/2026" },
   ]);
 
-  const handleUnban = (member: any, reason: string) => {
-    // Remove from blacklist
-    setBlacklist(blacklist.filter(m => m.id !== member.id));
-    
-    // Add log entry
-    const now = new Date();
-    const date = now.toLocaleDateString('pt-BR');
-    const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    
-    const newLog: SecurityLog = {
-      type: "unban",
-      message: `Membro ${member.name} (ID: ${member.id}) foi removido da blacklist. Motivo: ${reason}`,
-      time,
-      date,
-    };
-    
-    setSecurityLogs([newLog, ...securityLogs]);
-  };
+  const filteredBlacklist = blacklist.filter(member => 
+    member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.id.includes(searchTerm)
+  );
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -67,32 +54,23 @@ export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-white text-2xl font-['Arimo:Bold',sans-serif] mb-2">
-          Módulo PD - Segurança e Blacklist
-        </h1>
-        <p className="text-[#99a1af] text-sm">
-          Sistema de proteção contra traidores e membros problemáticos
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
-          <p className="text-[#99a1af] text-xs mb-1">Membros Banidos</p>
-          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{blacklist.length}</p>
-        </div>
-        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
-          <p className="text-[#99a1af] text-xs mb-1">Tentativas Bloqueadas</p>
-          <p className="text-[#a11212] text-2xl font-['Arimo:Bold',sans-serif]">2</p>
-        </div>
-        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
-          <p className="text-[#99a1af] text-xs mb-1">Alertas (30 dias)</p>
-          <p className="text-[#ffb84d] text-2xl font-['Arimo:Bold',sans-serif]">7</p>
-        </div>
+  const handleUnban = async (member: any, reason: string) => {
+    try {
+      const resp = await fetchNui("orgpanel:unbanMember", { citizenid: member.id });
+      if (resp.success) {
+        setBlacklist(blacklist.filter(m => m.id !== member.id));
+        const now = new Date();
+        setSecurityLogs([{
+          type: "unban",
+          message: `Membro ${member.name} (ID: ${member.id}) foi removido da blacklist. Motivo: ${reason}`,
+          time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          date: now.toLocaleDateString('pt-BR'),
+        }, ...securityLogs]);
+      }
+    } catch (e) {
+      console.error("Erro ao desbanir membro:", e);
+    }
+  };
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Status do Sistema</p>
           <div className="flex items-center gap-2">
@@ -113,6 +91,17 @@ export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
           </div>
 
           <div className="space-y-2">
+            {/* Search bar */}
+            <div className="mb-4 relative">
+              <input
+                type="text"
+                placeholder="Buscar na blacklist..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-[rgba(0,0,0,0.54)] border border-[rgba(161,18,18,0.4)] rounded-lg px-4 py-3 text-white placeholder:text-[#99a1af] focus:outline-none focus:border-[#a11212]"
+              />
+            </div>
+
             {/* Header */}
             <div className="grid grid-cols-6 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.54)] rounded-lg">
               <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">ID</div>
@@ -123,8 +112,8 @@ export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
             </div>
 
             {/* Rows */}
-            {blacklist.length > 0 ? (
-              blacklist.map((entry) => (
+            {filteredBlacklist.length > 0 ? (
+              filteredBlacklist.map((entry) => (
                 <div
                   key={entry.id}
                   className="grid grid-cols-6 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.3)] hover:bg-[rgba(0,0,0,0.5)] transition-colors rounded-lg items-center"

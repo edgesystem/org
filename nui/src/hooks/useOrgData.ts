@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchNui } from "../lib/nui";
 import type { OrgInfo, FarmConfig, FarmProgress, Transaction, BlacklistMember } from "../types/orgpanel";
 
@@ -11,7 +11,7 @@ export function useOrgData() {
   const [blacklist, setBlacklist] = useState<BlacklistMember[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       const [info, cfg, prog, tx, membersRes, bansRes] = await Promise.all([
         fetchNui("orgpanel:getMyOrgInfo"),
@@ -43,12 +43,18 @@ export function useOrgData() {
 
       if (Array.isArray(membersRes)) {
         const mappedMembers = membersRes.map((m: any) => ({
-          id: String(m.citizenid),
+          id: String(m.citizenid || m.id),
           name: m.name || "Desconhecido",
           rank: m.gradeName || "Membro",
           online: m.online || false,
-          deliveries: m.deliveries || 0,
-          recruited: m.recruited || 0,
+          deliveries: Number(m.deliveries || 0),
+          playtime: Number(m.playtime || 0),
+          weeklyTotal: Number(m.weeklyTotal || 0),
+          dailyTotal: Number(m.dailyTotal || 0),
+          weeklyAttendance: m.weeklyAttendance || [false, false, false, false, false, false, false],
+          recentDeliveries: m.recentDeliveries || [],
+          monthlyDeliveries: Number(m.monthlyDeliveries || 0),
+          recruited: Number(m.recruited || 0),
           mugshot_url: m.mugshot_url || null,
         }));
         setMembers(mappedMembers);
@@ -70,11 +76,11 @@ export function useOrgData() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [refreshData]);
 
   return {
     orgInfo,
