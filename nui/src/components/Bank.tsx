@@ -1,19 +1,6 @@
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { useState } from "react";
 
-// Helper function to safely format numbers
-function safeFormatNumber(value: any, decimals: number = 0): string {
-  if (value == null || isNaN(Number(value))) return decimals > 0 ? "0,00" : "0";
-  try {
-    return Number(value).toLocaleString('pt-BR', { 
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals 
-    });
-  } catch {
-    return decimals > 0 ? "0,00" : "0";
-  }
-}
-
 interface BankProps {
   balance: number;
   transactions: Transaction[];
@@ -32,10 +19,10 @@ interface Transaction {
 
 export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps) {
   const stats = {
-    weeklyIncome: transactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0),
-    weeklyExpenses: Math.abs(transactions.filter(t => t.amount < 0).reduce((acc, t) => acc + t.amount, 0)),
-    monthlyIncome: transactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0),
-    monthlyExpenses: Math.abs(transactions.filter(t => t.amount < 0).reduce((acc, t) => acc + t.amount, 0)),
+    weeklyIncome: 453000,
+    weeklyExpenses: 87000,
+    monthlyIncome: 1823000,
+    monthlyExpenses: 312000,
   };
 
   return (
@@ -76,7 +63,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
             <div>
               <p className="text-[#99a1af] text-sm mb-2">Saldo Total da Organização</p>
               <p className="text-white text-5xl font-['Arimo:Bold',sans-serif]">
-                R$ {safeFormatNumber(balance, 2)}
+                ${balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
             <CreditCard className="w-12 h-12 text-[#D4AF37]" />
@@ -88,7 +75,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#00ff9d]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  R$ {safeFormatNumber(stats.weeklyIncome)}
+                  ${stats.weeklyIncome.toLocaleString('pt-BR')}
                 </p>
               </div>
             </div>
@@ -97,7 +84,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-[#a11212]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  R$ {safeFormatNumber(stats.weeklyExpenses)}
+                  ${stats.weeklyExpenses.toLocaleString('pt-BR')}
                 </p>
               </div>
             </div>
@@ -106,7 +93,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#00ff9d]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  R$ {safeFormatNumber(stats.monthlyIncome)}
+                  ${stats.monthlyIncome.toLocaleString('pt-BR')}
                 </p>
               </div>
             </div>
@@ -115,7 +102,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-[#a11212]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  R$ {safeFormatNumber(stats.monthlyExpenses)}
+                  ${stats.monthlyExpenses.toLocaleString('pt-BR')}
                 </p>
               </div>
             </div>
@@ -168,7 +155,8 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
                   transaction.amount > 0 ? "text-[#00ff9d]" : "text-[#a11212]"
                 }`}
               >
-                {transaction.amount > 0 ? "+" : ""}R$ {Math.abs(transaction.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {transaction.amount > 0 ? "+" : ""}$
+                {Math.abs(transaction.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
             </div>
           ))}

@@ -5,16 +5,6 @@ import * as RechartsPrimitive from "recharts@2.15.2";
 
 import { cn } from "./utils";
 
-// Helper function to safely format numbers
-function safeFormatNumber(value: any): string {
-  if (value == null || isNaN(Number(value))) return "0";
-  try {
-    return Number(value).toLocaleString();
-  } catch {
-    return "0";
-  }
-}
-
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
 
@@ -244,7 +234,7 @@ function ChartTooltipContent({
                     </div>
                     {item.value && (
                       <span className="text-foreground font-mono font-medium tabular-nums">
-                        {safeFormatNumber(item.value)}
+                        {item.value.toLocaleString()}
                       </span>
                     )}
                   </div>

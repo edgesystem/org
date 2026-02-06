@@ -1,29 +1,17 @@
 import { useState } from "react";
 import { ArrowUpCircle, ArrowDownCircle, X, User, Search, ArrowRightLeft } from "lucide-react";
-import type { CurrentPlayer } from "../../types/orgpanel";
-
-// Helper function to safely format numbers
-function safeFormatNumber(value: any): string {
-  if (value == null || isNaN(Number(value))) return "0";
-  try {
-    return Number(value).toLocaleString('pt-BR');
-  } catch {
-    return "0";
-  }
-}
 
 interface BankOperationModalProps {
   type: "deposit" | "withdraw";
   onClose: () => void;
   onConfirm: (amount: number, memberName: string, description?: string, isTransfer?: boolean, transferTo?: string) => void;
   members?: Array<{ id: string; name: string; rank: string }>;
-  currentPlayer: CurrentPlayer | null;
 }
 
-export function BankOperationModal({ type, onClose, onConfirm, members = [], currentPlayer }: BankOperationModalProps) {
+export function BankOperationModal({ type, onClose, onConfirm, members = [] }: BankOperationModalProps) {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [memberName, setMemberName] = useState(type === "deposit" && currentPlayer ? currentPlayer.name : "");
+  const [memberName, setMemberName] = useState(type === "deposit" ? "Tio Han" : "");
   const [searchQuery, setSearchQuery] = useState("");
   const [isTransfer, setIsTransfer] = useState(false);
   const [transferTo, setTransferTo] = useState("");
@@ -37,14 +25,13 @@ export function BankOperationModal({ type, onClose, onConfirm, members = [], cur
   const handleConfirm = () => {
     const numAmount = parseFloat(amount);
     if (numAmount > 0) {
-      const playerName = currentPlayer?.name || "Jogador";
       if (type === "deposit" && memberName) {
         onConfirm(numAmount, memberName, description);
       } else if (type === "withdraw") {
         if (isTransfer && transferTo) {
-          onConfirm(numAmount, playerName, description, true, transferTo);
+          onConfirm(numAmount, "Tio Han", description, true, transferTo);
         } else if (!isTransfer) {
-          onConfirm(numAmount, playerName, description, false);
+          onConfirm(numAmount, "Tio Han", description, false);
         }
       }
     }
@@ -204,7 +191,7 @@ export function BankOperationModal({ type, onClose, onConfirm, members = [], cur
               <User className="w-5 h-5 text-[#00ff9d]" />
               <div>
                 <p className="text-[#99a1af] text-xs">Depositante</p>
-                <p className="text-white text-base font-['Arimo:Bold',sans-serif]">{currentPlayer?.name || "Carregando..."}</p>
+                <p className="text-white text-base font-['Arimo:Bold',sans-serif]">Tio Han</p>
               </div>
             </div>
           </div>
@@ -217,7 +204,7 @@ export function BankOperationModal({ type, onClose, onConfirm, members = [], cur
               <User className="w-5 h-5 text-[#a11212]" />
               <div>
                 <p className="text-[#99a1af] text-xs">Sacando para</p>
-                <p className="text-white text-base font-['Arimo:Bold',sans-serif]">{currentPlayer?.name || "Carregando..."}</p>
+                <p className="text-white text-base font-['Arimo:Bold',sans-serif]">Tio Han</p>
               </div>
             </div>
           </div>
@@ -297,21 +284,24 @@ export function BankOperationModal({ type, onClose, onConfirm, members = [], cur
                 isDeposit ? "text-[#00ff9d]" : "text-[#a11212]"
               }`}
             >
-              {isDeposit ? "+" : "-"}${safeFormatNumber(parseFloat(amount))}
+              {isDeposit ? "+" : "-"}${parseFloat(amount).toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </p>
             {isDeposit && (
               <p className="text-[#99a1af] text-xs mt-2">
-                Depositante: <span className="text-white">{currentPlayer?.name || "Carregando..."}</span>
+                Depositante: <span className="text-white">Tio Han</span>
               </p>
             )}
             {!isDeposit && !isTransfer && (
               <p className="text-[#99a1af] text-xs mt-2">
-                Sacando para: <span className="text-white">{currentPlayer?.name || "Carregando..."}</span>
+                Sacando para: <span className="text-white">Tio Han</span>
               </p>
             )}
             {!isDeposit && isTransfer && transferTo && (
               <p className="text-[#99a1af] text-xs mt-2">
-                De: <span className="text-white">{currentPlayer?.name || "Carregando..."}</span> → Para: <span className="text-white">{transferTo}</span>
+                De: <span className="text-white">Tio Han</span> → Para: <span className="text-white">{transferTo}</span>
               </p>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { Dashboard } from "./components/Dashboard";
 import { Members } from "./components/Members";
@@ -15,34 +15,20 @@ import { EditGoalModal } from "./components/modals/EditGoalModal";
 import { BanSuccessModal } from "./components/modals/BanSuccessModal";
 import { EditLeaderMessageModal } from "./components/modals/EditLeaderMessageModal";
 import { SlotLimitModal } from "./components/modals/SlotLimitModal";
-import { FarmProgressArc } from "./components/FarmProgressArc";
-import { fetchNui } from "./lib/nui";
 import { useOrgData } from "./hooks/useOrgData";
-import type { OrgInfo, FarmConfig, FarmProgress, ClaimFarmRewardResponse, BankOperationResponse } from "./types/orgpanel";
+import { fetchNui, closePanel } from "./utils/fetchNui";
+import type { Member, BlacklistMember, BankOperationResponse, ClaimFarmRewardResponse, StandardResponse } from "./types/orgpanel";
 
 export type TabType = "INÍCIO" | "MEMBROS" | "FARMS" | "RECRUTAMENTO" | "BANCO" | "PD";
 
-export interface Transaction {
-  id: string;
-  type: "deposit" | "withdraw" | "farm";
-  description: string;
-  amount: number;
-  date: string;
-  time: string;
-}
-
-export interface BlacklistMember {
-  id: string;
-  name: string;
-  reason: string;
-  bannedBy: string;
-  date: string;
-  severity: "critical" | "high" | "medium";
-}
-
 export default function App() {
+  // Visibilidade do painel
+  const [isVisible, setIsVisible] = useState(false);
+
+  // Hook central de dados (fonte única)
   const {
     orgInfo,
+    overview,
     farmConfig,
     farmProgress,
     members,
@@ -50,12 +36,19 @@ export default function App() {
     blacklist,
     currentPlayer,
     loading,
+    error,
     refreshData,
     setMembers,
-    setBlacklist
+    setBlacklist,
+    farmDeliveries,
+    farmStats,
+    weeklyAttendance,
+    recruiterStats,
+    newMembers,
+    recruitmentOverview,
   } = useOrgData();
 
-  const [isVisible, setIsVisible] = useState(false);
+  // UI States
   const [activeTab, setActiveTab] = useState<TabType>("INÍCIO");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showRecruitModal, setShowRecruitModal] = useState(false);
@@ -66,127 +59,178 @@ export default function App() {
   const [showBanSuccessModal, setShowBanSuccessModal] = useState(false);
   const [showEditLeaderMessageModal, setShowEditLeaderMessageModal] = useState(false);
   const [showSlotLimitModal, setShowSlotLimitModal] = useState(false);
+
   const [bankOperation, setBankOperation] = useState<"deposit" | "withdraw">("deposit");
-  const [selectedMemberForBan, setSelectedMemberForBan] = useState<any>(null);
-  const [selectedMemberForUnban, setSelectedMemberForUnban] = useState<any>(null);
+  const [selectedMemberForBan, setSelectedMemberForBan] = useState<Member | null>(null);
+  const [selectedMemberForUnban, setSelectedMemberForUnban] = useState<BlacklistMember | null>(null);
   const [bannedMemberName, setBannedMemberName] = useState("");
   const [slotLimitInfo, setSlotLimitInfo] = useState({ rank: "", currentCount: 0, limit: 0 });
-  const [leaderMessage, setLeaderMessage] = useState<string | null>(null);
+  const [leaderMessage, setLeaderMessage] = useState("Rádio: 320, 321, 323\nJaqueta: 664 textura25\nCalça: 27a textura\nMochila 22 textura 5");
 
-  // Listen for NUI messages and keyboard events
+  /**
+   * Listener para mensagens NUI (abertura do painel)
+   */
   useEffect(() => {
+    console.log('[DEBUG] NUI Listener registrado');
+    
     const handleMessage = (event: MessageEvent) => {
-      const data = event.data;
-      console.log('[org_panel] NUI Message received:', data);
+      console.log('[DEBUG] Mensagem recebida:', JSON.stringify(event.data, null, 2));
+      
+      const { action, data } = event.data;
 
-      if (data.action === 'openPanel') {
-        console.log('[org_panel] Opening panel');
+      if (action === 'openPanel') {
+        console.log('[DEBUG] action === openPanel, setando isVisible = true');
         setIsVisible(true);
-        refreshData();
-      }
-    };
-
-    // Handle ESC key to close panel
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        console.log('[org_panel] ESC pressed, closing panel');
-        closePanel();
+        
+        // Buscar dados ao abrir
+        try {
+          refreshData();
+        } catch (err) {
+          console.error('[DEBUG] Erro no refreshData:', err);
+        }
       }
     };
 
     window.addEventListener('message', handleMessage);
-    window.addEventListener('keydown', handleKeyDown);
+    
+    // Teste imediato
+    console.log('[DEBUG] window.addEventListener aplicado');
+    
     return () => {
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('keydown', handleKeyDown);
+      console.log('[DEBUG] Listener removido');
     };
   }, [refreshData]);
 
-  // Close panel: tell Lua to release focus and hide UI
-  const closePanel = () => {
+  /**
+   * Listener para ESC (fechar painel)
+   */
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isVisible) {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isVisible]);
+
+  /**
+   * Fechar painel
+   */
+  const handleClose = () => {
     setIsVisible(false);
-    fetchNui("orgpanel:close").catch(console.error);
+    closePanel(); // Chama orgpanel:close
   };
 
-  // Don't render anything if not visible
-  if (!isVisible) {
-    return null;
-  }
-
-  // DEBUG: Estilos inline para garantir visibilidade
-  const panelStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '90vw',
-    maxWidth: '1200px',
-    height: '90vh',
-    maxHeight: '800px',
-    backgroundColor: '#1a1a2e',
-    zIndex: '9999',
-    display: 'flex',
-    flexDirection: 'column',
-    borderRadius: '12px',
-    boxShadow: '0 0 50px rgba(0, 255, 136, 0.5)',
-    overflow: 'hidden',
+  /**
+   * AÇÃO: Coletar recompensa da farm
+   */
+  const handleDeliverGoal = async () => {
+    try {
+      const response = await fetchNui<ClaimFarmRewardResponse>('orgpanel:claimFarmReward');
+      
+      if (response.success) {
+        setShowSuccessModal(true);
+        await refreshData(); // Atualizar dados após sucesso
+      } else {
+        alert(response.message || 'Erro ao coletar recompensa');
+      }
+    } catch (error) {
+      console.error('[handleDeliverGoal] Error:', error);
+      alert('Erro ao coletar recompensa');
+    }
   };
 
-  const handleDeliverGoal = () => {
-    setShowSuccessModal(true);
-  };
-
+  /**
+   * AÇÃO: Recrutar jogador
+   */
   const handleRecruit = () => {
     setShowRecruitModal(true);
   };
 
-  const confirmRecruit = async (playerData: any) => {
+  const confirmRecruit = async (playerData: { id: string; name: string; online: boolean }) => {
     try {
-      const resp = await fetchNui("orgpanel:recruitPlayer", { targetId: playerData.id });
-      if (resp.success) {
+      const response = await fetchNui<StandardResponse>('orgpanel:recruitPlayer', {
+        targetId: playerData.id,
+      });
+
+      if (response.success) {
         setShowRecruitModal(false);
-        refreshData();
+        await refreshData(); // Atualizar lista de membros
+      } else {
+        alert(response.message || 'Erro ao recrutar jogador');
       }
-    } catch (e) {
-      console.error("Erro ao recrutar jogador:", e);
+    } catch (error) {
+      console.error('[confirmRecruit] Error:', error);
+      alert('Erro ao recrutar jogador');
     }
   };
 
-  const handleBanMember = (member: any) => {
+  /**
+   * AÇÃO: Banir membro
+   */
+  const handleBanMember = (member: Member) => {
     setSelectedMemberForBan(member);
     setShowBanModal(true);
   };
 
   const confirmBan = async (memberId: string, reason: string, severity: "critical" | "high" | "medium") => {
     try {
-      const resp = await fetchNui("orgpanel:banMember", { citizenid: memberId, reason });
-      if (resp.success) {
-        setBannedMemberName(selectedMemberForBan.name);
+      const response = await fetchNui<StandardResponse>('orgpanel:banMember', {
+        citizenid: memberId,
+        reason: reason,
+      });
+
+      if (response.success) {
+        setBannedMemberName(selectedMemberForBan?.name || '');
         setShowBanModal(false);
         setShowBanSuccessModal(true);
-        refreshData();
+        await refreshData(); // Atualizar listas
+      } else {
+        alert(response.message || 'Erro ao banir membro');
       }
-    } catch (e) {
-      console.error("Erro ao banir membro:", e);
+    } catch (error) {
+      console.error('[confirmBan] Error:', error);
+      alert('Erro ao banir membro');
     }
   };
 
-  const handleUnbanMember = (member: any) => {
+  /**
+   * AÇÃO: Desbanir membro
+   */
+  const handleUnbanMember = (member: BlacklistMember) => {
     setSelectedMemberForUnban(member);
     setShowUnbanModal(true);
   };
 
+  const confirmUnban = async () => {
+    if (!selectedMemberForUnban) return;
+
+    try {
+      const response = await fetchNui<StandardResponse>('orgpanel:unbanMember', {
+        citizenid: selectedMemberForUnban.id,
+      });
+
+      if (response.success) {
+        setShowUnbanModal(false);
+        await refreshData(); // Atualizar blacklist
+      } else {
+        alert(response.message || 'Erro ao desbanir membro');
+      }
+    } catch (error) {
+      console.error('[confirmUnban] Error:', error);
+      alert('Erro ao desbanir membro');
+    }
+  };
+
+  /**
+   * AÇÃO: Operação bancária (depositar/sacar)
+   */
   const handleBankOperation = (type: "deposit" | "withdraw") => {
     setBankOperation(type);
     setShowBankModal(true);
-  };
-
-  const handleEditGoal = () => {
-    setShowEditGoalModal(true);
-  };
-
-  const handleEditLeaderMessage = () => {
-    setShowEditLeaderMessageModal(true);
   };
 
   const confirmBankOperation = async (
@@ -197,114 +241,118 @@ export default function App() {
     transferTo?: string
   ) => {
     try {
-      let resp: BankOperationResponse;
-      if (bankOperation === "deposit") {
-        resp = (await fetchNui("orgpanel:deposit", { amount, description })) as BankOperationResponse;
-      } else {
-        resp = (await fetchNui("orgpanel:withdraw", { amount, description })) as BankOperationResponse;
-      }
+      const eventName = bankOperation === "deposit" ? 'orgpanel:deposit' : 'orgpanel:withdraw';
+      
+      const response = await fetchNui<BankOperationResponse>(eventName, {
+        amount,
+        description,
+      });
 
-      if (resp.success) {
-        refreshData();
+      if (response.success) {
         setShowBankModal(false);
+        await refreshData(); // Atualizar balance e transações
+      } else {
+        alert(response.message || 'Erro na operação bancária');
       }
-    } catch (e) {
-      console.error("Erro na operação bancária", e);
+    } catch (error) {
+      console.error('[confirmBankOperation] Error:', error);
+      alert('Erro na operação bancária');
     }
   };
 
-  const confirmEditGoal = async (goalAmount: number, pricePerUnit: number) => {
+  /**
+   * AÇÃO: Editar configuração da meta
+   */
+  const handleEditGoal = () => {
+    setShowEditGoalModal(true);
+  };
+
+  const confirmEditGoal = async (goalAmount: number, rewardPerUnit: number, prizes: any) => {
     try {
-      const resp = await fetchNui("orgpanel:updateFarmConfig", { 
-        dailyGoal: goalAmount, 
-        rewardPerUnit: pricePerUnit
+      const response = await fetchNui<StandardResponse>('orgpanel:updateFarmConfig', {
+        dailyGoal: goalAmount,
+        rewardPerUnit: rewardPerUnit,
       });
-      if (resp.success) {
-        refreshData();
+
+      if (response.success) {
         setShowEditGoalModal(false);
+        await refreshData(); // Atualizar farmConfig
+      } else {
+        alert(response.message || 'Erro ao atualizar meta');
       }
-    } catch (e) {
-      console.error("Erro ao editar meta:", e);
+    } catch (error) {
+      console.error('[confirmEditGoal] Error:', error);
+      alert('Erro ao atualizar meta');
     }
+  };
+
+  /**
+   * AÇÃO: Editar mensagem do líder (estado local)
+   */
+  const handleEditLeaderMessage = () => {
+    setShowEditLeaderMessageModal(true);
   };
 
   const confirmEditLeaderMessage = (newMessage: string) => {
     setLeaderMessage(newMessage);
     setShowEditLeaderMessageModal(false);
+    // TODO: Se houver callback no backend para salvar, adicionar aqui
   };
 
-  const handleClaimFarmReward = async () => {
-    try {
-      const res = (await fetchNui("orgpanel:claimFarmReward")) as ClaimFarmRewardResponse;
-      if (res.success) {
-        refreshData();
-      }
-    } catch (e) {
-      console.error("Erro ao coletar recompensa de farm", e);
-    }
-  };
+  // Se não estiver visível, não renderizar nada
+  if (!isVisible) {
+    return null;
+  }
 
-  if (loading) return null;
+  // Loading state
+  if (loading && !orgInfo) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-2xl">Carregando...</div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && !orgInfo) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-red-500 text-2xl">Erro: {error}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-auto" style={panelStyle}>
-      <div
-        className="w-full max-w-[90vw] max-h-[90vh] bg-black relative flex flex-col rounded-[20px] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10 overflow-hidden"
-        style={{ maxWidth: '1280px', height: '100%', backgroundColor: '#0c0505' }}
-      >
-        <style>{`
-          .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(161, 18, 18, 0.4); border-radius: 10px; }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(161, 18, 18, 0.6); }
-        `}</style>
-        {/* Background */}
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#0c0505] via-[#1a0a0a] to-[#0c0505]" aria-hidden="true" />
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Background gradient em vez de imagem */}
+      <div className="fixed inset-0 z-0">
+        <div className="w-full h-full bg-gradient-to-br from-[#0a0404] via-black to-[#0f0505] opacity-90" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/90" />
+      </div>
 
-        {/* Header no fluxo: ocupa espaço e não sobrepõe */}
-        <header className="relative z-10 flex-shrink-0">
-          <Header
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            onClose={closePanel}
-            bankBalance={orgInfo?.balance ?? 0}
-            membersOnline={members.filter(m => m.online).length}
-            maxMembers={149}
-            orgLabel={orgInfo?.label}
-          />
-        </header>
+      {/* Fixed Header */}
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        bankBalance={orgInfo?.balance || 0}
+        orgLabel={orgInfo?.label || ''}
+        onlineCount={overview?.onlineCount || 0}
+        totalMembers={overview?.totalMembers || members.length}
+        onClose={handleClose}
+      />
 
-        {/* Área que rola: só esta div tem overflow */}
-        <div className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-8 pt-6 pb-16">
+      {/* Scrollable Content Area */}
+      <div className="relative z-10 pt-[334px] min-h-screen">
+        <div className="px-8 pt-[30px] pb-16 overflow-y-auto" style={{ maxHeight: "calc(100vh - 334px)" }}>
           {activeTab === "INÍCIO" && (
             <Dashboard
               onDeliverGoal={handleDeliverGoal}
               onEditGoal={handleEditGoal}
               onEditLeaderMessage={handleEditLeaderMessage}
-              maxGoal={farmConfig?.dailyGoal ?? 0}
-              pricePerUnit={farmConfig?.rewardPerUnit ?? 0}
-              leaderMessage={leaderMessage || ''}
-              members={members}
+              farmConfig={farmConfig}
               farmProgress={farmProgress}
-              FarmProgressComponent={
-                farmProgress ? (
-                  <FarmProgressArc
-                    dailyGoal={farmProgress.dailyGoal}
-                    currentQuantity={farmProgress.currentQuantity}
-                    potentialReward={farmProgress.potentialReward}
-                    rewardClaimed={farmProgress.rewardClaimed}
-                    onClaim={handleClaimFarmReward}
-                  />
-                ) : (
-                  <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6">
-                    <h2 className="text-white text-lg font-['Arimo:Bold',sans-serif] mb-4">Entrega de Farm</h2>
-                    <div className="flex flex-col items-center justify-center py-8">
-                      <p className="text-[#99a1af] text-sm text-center">Carregando seu progresso...</p>
-                      <p className="text-[#99a1af] text-xs mt-2 text-center">Se não aparecer, verifique se está na organização.</p>
-                    </div>
-                  </div>
-                )
-              }
+              leaderMessage={leaderMessage}
+              members={members}
             />
           )}
           {activeTab === "MEMBROS" && (
@@ -318,13 +366,34 @@ export default function App() {
                 setSlotLimitInfo({ rank, currentCount, limit });
                 setShowSlotLimitModal(true);
               }}
+              refreshData={refreshData}
             />
           )}
-          {activeTab === "FARMS" && <Farms members={members} />}
-          {activeTab === "RECRUTAMENTO" && <Recruitment />}
+          {activeTab === "FARMS" && (
+            <Farms 
+              farmDeliveries={farmDeliveries}
+              farmStats={farmStats}
+              weeklyAttendance={weeklyAttendance}
+              farmConfig={farmConfig}
+              farmProgress={farmProgress}
+              isBoss={orgInfo?.isBoss || false}
+              loading={loading}
+              onEditGoal={handleEditGoal}
+            />
+          )}
+          {activeTab === "RECRUTAMENTO" && (
+            <Recruitment 
+              recruiterStats={recruiterStats}
+              newMembers={newMembers}
+              recruitmentOverview={recruitmentOverview}
+              loading={loading}
+              canRecruit={orgInfo?.isRecruiter || orgInfo?.isBoss || false}
+              onRecruit={handleRecruit}
+            />
+          )}
           {activeTab === "BANCO" && (
             <Bank
-              balance={orgInfo?.balance ?? 0}
+              balance={orgInfo?.balance || 0}
               transactions={transactions}
               onDeposit={() => handleBankOperation("deposit")}
               onWithdraw={() => handleBankOperation("withdraw")}
@@ -338,6 +407,7 @@ export default function App() {
             />
           )}
         </div>
+      </div>
 
       {/* Modals */}
       {showSuccessModal && (
@@ -347,21 +417,22 @@ export default function App() {
         <RecruitModal 
           onClose={() => setShowRecruitModal(false)}
           onConfirm={confirmRecruit}
-          existingMemberIds={members.map(m => m.id)}
+          existingMemberIds={members.map(m => m.citizenid)}
           blacklist={blacklist}
         />
       )}
-      {showBanModal && (
+      {showBanModal && selectedMemberForBan && (
         <BanModal
           member={selectedMemberForBan}
           onClose={() => setShowBanModal(false)}
           onConfirm={confirmBan}
         />
       )}
-      {showUnbanModal && (
+      {showUnbanModal && selectedMemberForUnban && (
         <UnbanModal
           member={selectedMemberForUnban}
           onClose={() => setShowUnbanModal(false)}
+          onConfirm={confirmUnban}
         />
       )}
       {showBankModal && (
@@ -370,13 +441,18 @@ export default function App() {
           onClose={() => setShowBankModal(false)}
           onConfirm={confirmBankOperation}
           members={members}
-          currentPlayer={currentPlayer}
         />
       )}
-      {showEditGoalModal && (
+      {showEditGoalModal && farmConfig && (
         <EditGoalModal
-          currentGoal={farmConfig?.dailyGoal ?? 0}
-          currentPricePerUnit={farmConfig?.rewardPerUnit ?? 0}
+          currentGoal={farmConfig.dailyGoal}
+          currentPricePerUnit={farmConfig.rewardPerUnit}
+          currentPrizes={{
+            first: 0,
+            second: 0,
+            third: 0,
+            others: farmConfig.rewardFixed,
+          }}
           onClose={() => setShowEditGoalModal(false)}
           onConfirm={confirmEditGoal}
         />
@@ -389,7 +465,7 @@ export default function App() {
       )}
       {showEditLeaderMessageModal && (
         <EditLeaderMessageModal
-          currentMessage={leaderMessage || ''}
+          currentMessage={leaderMessage}
           onClose={() => setShowEditLeaderMessageModal(false)}
           onConfirm={confirmEditLeaderMessage}
         />
@@ -402,7 +478,6 @@ export default function App() {
           limit={slotLimitInfo.limit}
         />
       )}
-      </div>
     </div>
   );
 }

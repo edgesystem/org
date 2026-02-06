@@ -6,15 +6,27 @@ local isPanelOpen = false
 -- =====================================================
 
 RegisterCommand('painelorg', function()
-    if isPanelOpen then return end
+    if isPanelOpen then 
+        print('[org_panel] Painel ja esta aberto, ignorando')
+        return 
+    end
 
     print('[org_panel] === COMANDO PAINELORG EXECUTADO ===')
     
-    -- Verificar se o jogador pertence a uma organizacao (COM TIMEOUT)
+    --_TIMEOUT DE 5 SEGUNDOS PARA O CALLBACK
+    local callbackTimeout = 5000
     local startTime = GetGameTimer()
+    local callbackReceived = false
+    local orgInfoData = nil
+    
+    print('[org_panel] Iniciando callback...')
+    
     lib.callback('orgpanel:getMyOrgInfo', false, function(orgInfo)
+        callbackReceived = true
         local elapsed = GetGameTimer() - startTime
+        orgInfoData = orgInfo
         print('[org_panel] Callback retornou em ' .. elapsed .. 'ms')
+        print('[org_panel] orgInfo: ' .. tostring(orgInfo))
         
         if not orgInfo then
             print('[org_panel] ERRO: Jogador nao pertence a organizacao!')
@@ -25,6 +37,7 @@ RegisterCommand('painelorg', function()
         print('[org_panel] Sucesso! Abrindo painel para: ' .. tostring(orgInfo.label))
         print('[org_panel] orgInfo completo: ' .. json.encode(orgInfo))
         
+        -- ABRIR PAINEL
         isPanelOpen = true
         SetNuiFocus(true, true)
         SetNuiFocusKeepInput(false)
@@ -33,17 +46,43 @@ RegisterCommand('painelorg', function()
         print('[org_panel] Enviando mensagem openPanel para NUI')
         SendNUIMessage(msg)
         
-        -- Verificar se NUI esta respondendo apos 2 segundos
+        -- Verificar se NUI abriu apos 2 segundos
         CreateThread(function()
             Wait(2000)
-            print('[org_panel] Verificacao NUI: painel ainda esta aberto = ' .. tostring(isPanelOpen))
+            if isPanelOpen then
+                print('[org_panel] SUCESSO: Painel esta aberto e aguardando interacao')
+            else
+                print('[org_panel] ERRO: Painel fechou automaticamente')
+            end
         end)
-    end, function(err)
-        print('[org_panel] ERRO NO CALLBACK: ' .. tostring(err))
-        -- Mesmo com erro, tentar abrir o painel
-        isPanelOpen = true
-        SetNuiFocus(true, true)
-        SendNUIMessage({ action = 'openPanel', error = err })
+    end)
+    
+    -- TIMEOUT FALLBACK - Se callback nao responder em 5s, abre painel vazio
+    CreateThread(function()
+        Wait(callbackTimeout)
+        if not callbackReceived then
+            print('[org_panel] TIMEOUT: Callback nao respondeu em ' .. callbackTimeout .. 'ms')
+            print('[org_panel] ABRINDO PAINEL COM DADOS FALLBACK')
+            
+            -- Abrir mesmo assim para debug
+            isPanelOpen = true
+            SetNuiFocus(true, true)
+            SetNuiFocusKeepInput(false)
+            
+            local fallbackData = {
+                orgName = 'DEBUG_ORG',
+                label = 'DEBUG - Verificar Console',
+                balance = 0,
+                myGrade = 1,
+                myGradeName = 'Membro',
+                isBoss = true,
+                bankAuth = true,
+                isRecruiter = true
+            }
+            
+            SendNUIMessage({ action = 'openPanel', data = fallbackData })
+            TriggerEvent('qb-core:client:Notify', 'Painel aberto em modo debug - verifique console F8', 'inform')
+        end
     end)
 end, false)
 

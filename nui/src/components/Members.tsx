@@ -1,23 +1,17 @@
 import { useState } from "react";
 import { UserPlus, Search, Ban } from "lucide-react";
 import { RankSelector } from "./RankSelector";
-
-interface Member {
-  id: string;
-  name: string;
-  rank: string;
-  online: boolean;
-  deliveries: number;
-  recruited: number;
-}
+import { fetchNui } from "../utils/fetchNui";
+import type { Member, BlacklistMember, StandardResponse } from "../types/orgpanel";
 
 interface MembersProps {
   onRecruit: () => void;
   onBanMember: (member: Member) => void;
-  blacklist: any[];
+  blacklist: BlacklistMember[];
   members: Member[];
   setMembers: (members: Member[]) => void;
   onSlotLimitReached: (rank: string, currentCount: number, limit: number) => void;
+  refreshData: () => Promise<void>;
 }
 
 // Definição dos limites de vagas por cargo
@@ -54,7 +48,7 @@ const RANK_HIERARCHY: { [key: string]: number } = {
   "Novato": 12,
 };
 
-export function Members({ onRecruit, onBanMember, blacklist, members, setMembers, onSlotLimitReached }: MembersProps) {
+export function Members({ onRecruit, onBanMember, blacklist, members, setMembers, onSlotLimitReached, refreshData }: MembersProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
   const ranks = [
@@ -94,33 +88,31 @@ export function Members({ onRecruit, onBanMember, blacklist, members, setMembers
   };
 
   const handleRankChange = async (memberId: string, newRank: string) => {
+    // Verificar se pode alterar para este cargo
     if (!canChangeRank(memberId, newRank)) {
       const limit = RANK_LIMITS[newRank];
       const currentCount = countMembersByRank(newRank);
+      
       onSlotLimitReached(newRank, currentCount, limit);
       return;
     }
 
     try {
-      const resp = await fetchNui("orgpanel:changeMemberGrade", { citizenid: memberId, gradeName: newRank });
-      if (resp.success) {
-        const updatedMembers = members.map(m => 
-          m.id === memberId ? { ...m, rank: newRank } : m
-        );
+      // Chamar evento NUI para alterar cargo no backend
+      const response = await fetchNui<StandardResponse>('orgpanel:changeMemberGrade', {
+        citizenid: memberId,
+        gradeName: newRank,
+      });
 
-        const sortedMembers = updatedMembers.sort((a, b) => {
-          const hierarchyA = RANK_HIERARCHY[a.rank] ?? 999;
-          const hierarchyB = RANK_HIERARCHY[b.rank] ?? 999;
-          if (hierarchyA === hierarchyB) {
-            return (b.deliveries || 0) - (a.deliveries || 0);
-          }
-          return hierarchyA - hierarchyB;
-        });
-
-        setMembers(sortedMembers);
+      if (response.success) {
+        // Atualizar dados após sucesso
+        await refreshData();
+      } else {
+        alert(response.message || 'Erro ao alterar cargo');
       }
-    } catch (e) {
-      console.error("Erro ao alterar cargo:", e);
+    } catch (error) {
+      console.error('[handleRankChange] Error:', error);
+      alert('Erro ao alterar cargo');
     }
   };
 

@@ -1,34 +1,21 @@
-import { TabType } from "../App";
-import { Users, X, MessageCircle } from "lucide-react";
-import { fetchNui } from "../lib/nui";
-import logoSrc from "../assets/5f5380810e5937b8b262591e79df134e9a163312.png";
-import headerImgSrc from "../assets/a3bed3c7260b6bcacb2be941323d9c68785af310.png";
-
-// Helper function to safely format numbers
-function safeFormatNumber(value: any): string {
-  if (value == null || isNaN(Number(value))) return "0";
-  try {
-    return Number(value).toLocaleString('pt-BR');
-  } catch {
-    return "0";
-  }
-}
+import { DollarSign, Users, X, MessageCircle } from "lucide-react";
+import { fetchNui } from "../utils/fetchNui";
 
 interface HeaderProps {
-  activeTab: TabType;
-  setActiveTab: (tab: TabType) => void;
-  onClose: () => void;
+  activeTab: string;
+  setActiveTab: (tab: any) => void;
   bankBalance: number;
-  membersOnline: number;
-  maxMembers: number;
-  orgLabel?: string;
+  orgLabel: string;
+  onlineCount: number;
+  totalMembers: number;
+  onClose: () => void;
 }
 
-export function Header({ activeTab, setActiveTab, onClose, bankBalance, membersOnline, maxMembers, orgLabel }: HeaderProps) {
-  const tabs: TabType[] = ["INÍCIO", "MEMBROS", "FARMS", "RECRUTAMENTO", "BANCO", "PD"];
+export function Header({ activeTab, setActiveTab, bankBalance, orgLabel, onlineCount, totalMembers, onClose }: HeaderProps) {
+  const tabs: string[] = ["INÍCIO", "MEMBROS", "FARMS", "RECRUTAMENTO", "BANCO", "PD"];
 
   const handleDiscordClick = () => {
-    fetchNui("orgpanel:openDiscord");
+    fetchNui('orgpanel:openDiscord').catch(console.error);
   };
 
   const handleCloseClick = () => {
@@ -36,14 +23,10 @@ export function Header({ activeTab, setActiveTab, onClose, bankBalance, membersO
   };
 
   return (
-    <div className="relative w-full flex-shrink-0 h-[334px] bg-black">
-      {/* Background header image */}
-      <div className="absolute inset-0 h-[277px] pointer-events-none">
-        <img
-          src={headerImgSrc}
-          alt="Header"
-          className="w-full h-full object-cover"
-        />
+    <div className="fixed top-0 left-0 right-0 z-50 h-[334px] bg-black">
+      {/* Background header - usando gradiente em vez de imagem */}
+      <div className="absolute inset-0 h-[277px]">
+        <div className="w-full h-full bg-gradient-to-b from-[#1a0505] via-[#0f0303] to-black opacity-90" />
         <div className="absolute inset-0 border-b border-[rgba(161,18,18,0.3)]" />
       </div>
 
@@ -51,15 +34,14 @@ export function Header({ activeTab, setActiveTab, onClose, bankBalance, membersO
       <div className="relative px-8 pt-6">
         {/* Organization info */}
         <div className="flex items-center gap-3 mb-6">
-          <img
-            src={logoSrc}
-            alt="Logo"
-            className="w-[60px] h-[60px] rounded-lg object-cover"
-          />
+          {/* Logo placeholder - usando gradiente */}
+          <div className="w-[60px] h-[60px] rounded-lg bg-gradient-to-br from-[#a11212] to-[#5a0a0a] flex items-center justify-center border border-[rgba(161,18,18,0.5)]">
+            <Users className="w-8 h-8 text-white/80" />
+          </div>
           <div>
             <p className="text-[#99a1af] text-xs font-['Arimo:Regular',sans-serif]">Organização</p>
             <h1 className="text-white text-4xl font-['Arimo:Bold',sans-serif] tracking-[0.9px]">
-              {orgLabel || 'Carregando...'}
+              {orgLabel}
             </h1>
           </div>
         </div>
@@ -75,14 +57,9 @@ export function Header({ activeTab, setActiveTab, onClose, bankBalance, membersO
                 Saldo bancário
               </p>
               <div className="flex items-center gap-2">
-                <div className="text-[#00ff9d]">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 20 20">
-                    <path d="M10 1.66667V18.3333" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.66667" />
-                    <path d="M14.1667 4.16667H7.91667C7.14312 4.16667 6.40125 4.47396 5.85427 5.02094C5.30729 5.56792 5 6.30978 5 7.08333C5 7.85688 5.30729 8.59875 5.85427 9.14573C6.40125 9.69271 7.14312 10 7.91667 10H12.0833C12.8569 10 13.5987 10.3073 14.1457 10.8543C14.6927 11.4013 15 12.1431 15 12.9167C15 13.6902 14.6927 14.4321 14.1457 14.9791C13.5987 15.526 12.8569 15.8333 12.0833 15.8333H5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.66667" />
-                  </svg>
-                </div>
+                <DollarSign className="w-5 h-5 text-[#00ff9d]" />
                 <p className="text-[#00ff9d] text-2xl font-['Arimo:Bold',sans-serif]">
-                  {safeFormatNumber(bankBalance)}
+                  {bankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
@@ -94,7 +71,7 @@ export function Header({ activeTab, setActiveTab, onClose, bankBalance, membersO
               </p>
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-white" />
-                <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{membersOnline}/{maxMembers}</p>
+                <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{onlineCount}/{totalMembers}</p>
               </div>
             </div>
           </div>

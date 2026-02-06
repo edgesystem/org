@@ -119,48 +119,16 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* NUI FiveM Base Styles - CORRIGIDO */
-* {
-  box-sizing: border-box;
-  /* Forçar cursor visível */
-  cursor: default !important;
-}
-
-html {
-  font-size: var(--font-size);
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: transparent;
-  /* Forçar cursor visível no NUI */
-  cursor: default !important;
-}
-
 @layer base {
   * {
-    border-color: var(--border);
-    outline-color: var(--ring/50);
+    @apply border-border outline-ring/50;
   }
 
   body {
-    background-color: var(--background);
-    color: var(--foreground);
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Forçar cursor visível */
-    cursor: default !important;
   }
-}
-
-/* Todos os elementos clicáveis */
-button, a, input, select, textarea, [role="button"], [tabindex] {
-  cursor: pointer !important;
 }
 
 /**
@@ -212,38 +180,6 @@ button, a, input, select, textarea, [role="button"], [tabindex] {
   }
 }
 
-/* NUI Panel Layout - Previne scroll horizontal e permite cliques */
-.nui-panel-container {
-  width: 100%;
-  height: 100%;
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.nui-panel-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* Hide scrollbar mas mantém funcionalidade */
-.nui-panel-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.nui-panel-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.nui-panel-content::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
-  border-radius: 3px;
-}
-
-/* Prevenir qualquer overflow horizontal */
-.nui-panel-content * {
-  max-width: 100%;
+html {
+  font-size: var(--font-size);
 }

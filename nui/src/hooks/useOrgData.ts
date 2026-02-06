@@ -1,129 +1,180 @@
-import { useState, useEffect, useCallback } from "react";
-import { fetchNui } from "../lib/nui";
-import type { OrgInfo, FarmConfig, FarmProgress, Transaction, BlacklistMember, CurrentPlayer } from "../types/orgpanel";
+/**
+ * Hook central de dados do painel
+ * FONTE ÚNICA DE DADOS - todos os componentes devem consumir daqui
+ */
 
-// Helper function to safely format dates
-function safeFormatDate(date: Date | undefined | null, format: "date" | "time"): string {
-  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
-    return format === "date" ? "--/--/----" : "--:--";
-  }
-  try {
-    if (format === "date") {
-      return date.toLocaleDateString("pt-BR");
-    }
-    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return format === "date" ? "--/--/----" : "--:--";
-  }
+import { useState, useCallback } from 'react';
+import { fetchNui } from '../utils/fetchNui';
+import type {
+  OrgInfo,
+  FarmConfig,
+  FarmProgress,
+  Member,
+  Transaction,
+  BlacklistMember,
+  CurrentPlayer,
+  Overview,
+  FarmDelivery,
+  FarmStats,
+  MemberWeeklyAttendance,
+  RecruiterStats,
+  NewMember,
+  RecruitmentOverview,
+} from '../types/orgpanel';
+
+interface UseOrgDataReturn {
+  // Estados
+  orgInfo: OrgInfo | null;
+  overview: Overview | null;
+  farmConfig: FarmConfig | null;
+  farmProgress: FarmProgress | null;
+  members: Member[];
+  transactions: Transaction[];
+  blacklist: BlacklistMember[];
+  currentPlayer: CurrentPlayer | null;
+  farmDeliveries: FarmDelivery[];
+  farmStats: FarmStats | null;
+  weeklyAttendance: MemberWeeklyAttendance[];
+  recruiterStats: RecruiterStats[];
+  newMembers: NewMember[];
+  recruitmentOverview: RecruitmentOverview | null;
+  loading: boolean;
+  error: string | null;
+
+  // Funções
+  refreshData: () => Promise<void>;
+  setMembers: (members: Member[]) => void;
+  setBlacklist: (blacklist: BlacklistMember[]) => void;
 }
 
-// Helper function to safely format numbers
-function safeToLocaleString(value: any): string {
-  if (value == null || isNaN(Number(value))) return "0";
-  try {
-    return Number(value).toLocaleString("pt-BR");
-  } catch {
-    return "0";
-  }
-}
-
-export function useOrgData() {
+export function useOrgData(): UseOrgDataReturn {
   const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
+  const [overview, setOverview] = useState<Overview | null>(null);
   const [farmConfig, setFarmConfig] = useState<FarmConfig | null>(null);
   const [farmProgress, setFarmProgress] = useState<FarmProgress | null>(null);
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [blacklist, setBlacklist] = useState<BlacklistMember[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<CurrentPlayer | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [farmDeliveries, setFarmDeliveries] = useState<FarmDelivery[]>([]);
+  const [farmStats, setFarmStats] = useState<FarmStats | null>(null);
+  const [weeklyAttendance, setWeeklyAttendance] = useState<MemberWeeklyAttendance[]>([]);
+  const [recruiterStats, setRecruiterStats] = useState<RecruiterStats[]>([]);
+  const [newMembers, setNewMembers] = useState<NewMember[]>([]);
+  const [recruitmentOverview, setRecruitmentOverview] = useState<RecruitmentOverview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Busca todos os dados do backend
+   * Chamado na montagem e após qualquer ação que altere dados
+   */
   const refreshData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      const [info, cfg, prog, tx, membersRes, bansRes, playerRes] = await Promise.all([
-        fetchNui("orgpanel:getMyOrgInfo"),
-        fetchNui("orgpanel:getFarmConfig"),
-        fetchNui("orgpanel:getMyFarmProgress"),
-        fetchNui("orgpanel:getTransactions"),
-        fetchNui("orgpanel:getMembers"),
-        fetchNui("orgpanel:getBannedMembers"),
-        fetchNui("orgpanel:getCurrentPlayer"),
+      // Buscar dados em paralelo para melhor performance
+      const [
+        orgInfoData,
+        overviewData,
+        farmConfigData,
+        farmProgressData,
+        membersData,
+        transactionsData,
+        bannedMembersData,
+        currentPlayerData,
+        farmDeliveriesData,
+        farmStatsData,
+        weeklyAttendanceData,
+        recruiterStatsData,
+        newMembersData,
+        recruitmentOverviewData,
+      ] = await Promise.all([
+        fetchNui<OrgInfo | null>('orgpanel:getMyOrgInfo'),
+        fetchNui<Overview | null>('orgpanel:getOverview'),
+        fetchNui<FarmConfig | null>('orgpanel:getFarmConfig'),
+        fetchNui<FarmProgress | null>('orgpanel:getMyFarmProgress'),
+        fetchNui<Member[]>('orgpanel:getMembers'),
+        fetchNui<any[]>('orgpanel:getTransactions'),
+        fetchNui<any[]>('orgpanel:getBannedMembers'),
+        fetchNui<CurrentPlayer | null>('orgpanel:getCurrentPlayer'),
+        fetchNui<FarmDelivery[]>('orgpanel:getFarmDeliveries'),
+        fetchNui<FarmStats | null>('orgpanel:getFarmStats'),
+        fetchNui<MemberWeeklyAttendance[]>('orgpanel:getWeeklyAttendance'),
+        fetchNui<RecruiterStats[]>('orgpanel:getRecruiterStats'),
+        fetchNui<NewMember[]>('orgpanel:getNewMembers'),
+        fetchNui<RecruitmentOverview | null>('orgpanel:getRecruitmentOverview'),
       ]);
 
-      if (info) setOrgInfo(info);
-      if (cfg) setFarmConfig(cfg);
-      if (prog) setFarmProgress(prog);
-      if (playerRes) setCurrentPlayer(playerRes);
-      
-      if (Array.isArray(tx)) {
-        const mapped: Transaction[] = tx.map((row: any, idx: number) => {
-          const created = row.created_at ? new Date(row.created_at) : null;
-          return {
-            id: String(row.id ?? `TRX-${idx + 1}`),
-            type: row.transaction_type === "entrada" ? "deposit" : "withdraw",
-            description: row.description ?? "",
-            amount: row.transaction_type === "entrada" ? Number(row.amount) : -Number(row.amount),
-            date: safeFormatDate(created, "date"),
-            time: safeFormatDate(created, "time"),
-          };
-        });
-        setTransactions(mapped);
-      }
+      // Atualizar estados
+      setOrgInfo(orgInfoData);
+      setOverview(overviewData);
+      setFarmConfig(farmConfigData);
+      setFarmProgress(farmProgressData);
+      setMembers(membersData || []);
 
-      if (Array.isArray(membersRes)) {
-        const mappedMembers = membersRes.map((m: any) => ({
-          id: String(m.citizenid || m.id || ""),
-          name: m.name || "Desconhecido",
-          rank: m.gradeName || "Membro",
-          online: Boolean(m.online),
-          deliveries: Number(m.deliveries || 0),
-          playtime: Number(m.playtime || 0),
-          weeklyTotal: Number(m.weeklyTotal || 0),
-          dailyTotal: Number(m.dailyTotal || 0),
-          weeklyAttendance: m.weeklyAttendance || [false, false, false, false, false, false, false],
-          recentDeliveries: m.recentDeliveries || [],
-          monthlyDeliveries: Number(m.monthlyDeliveries || 0),
-          recruited: Number(m.recruited || 0),
-          mugshot_url: m.mugshot_url || null,
-        }));
-        setMembers(mappedMembers);
-      }
+      // Mapear transações para o formato correto
+      const mappedTransactions: Transaction[] = (transactionsData || []).map((tx: any) => ({
+        id: tx.id || String(tx.created_at),
+        type: tx.transaction_type || tx.type,
+        description: tx.description,
+        amount: tx.amount,
+        date: tx.created_at ? new Date(tx.created_at * 1000).toLocaleDateString('pt-BR') : '',
+        time: tx.created_at ? new Date(tx.created_at * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+        citizenid: tx.citizenid,
+        created_at: tx.created_at,
+      }));
+      setTransactions(mappedTransactions);
 
-      if (Array.isArray(bansRes)) {
-        const mappedBans: BlacklistMember[] = bansRes.map((b: any) => {
-          const bannedDate = b.banned_at ? new Date(b.banned_at) : null;
-          return {
-            id: String(b.banned_citizenid),
-            name: b.name || String(b.banned_citizenid || ""),
-            reason: b.reason || "Sem motivo informado",
-            bannedBy: String(b.banned_by || ""),
-            date: safeFormatDate(bannedDate, "date"),
-            severity: "medium",
-          };
-        });
-        setBlacklist(mappedBans);
-      }
-    } catch (e) {
-      console.error("Erro ao carregar dados da organizacao:", e);
+      // Mapear banidos para o formato correto
+      const mappedBlacklist: BlacklistMember[] = (bannedMembersData || []).map((banned: any) => ({
+        id: banned.banned_citizenid || banned.citizenid,
+        name: banned.name,
+        reason: banned.reason,
+        bannedBy: banned.banned_by,
+        date: banned.banned_at ? new Date(banned.banned_at * 1000).toLocaleDateString('pt-BR') : '',
+        severity: banned.severity || 'medium',
+      }));
+      setBlacklist(mappedBlacklist);
+
+      setCurrentPlayer(currentPlayerData);
+      setFarmDeliveries(farmDeliveriesData);
+      setFarmStats(farmStatsData);
+      setWeeklyAttendance(weeklyAttendanceData);
+      setRecruiterStats(recruiterStatsData);
+      setNewMembers(newMembersData);
+      setRecruitmentOverview(recruitmentOverviewData);
+    } catch (err) {
+      console.error('[useOrgData] Error fetching data:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
-
   return {
+    // Estados
     orgInfo,
+    overview,
     farmConfig,
     farmProgress,
     members,
     transactions,
     blacklist,
     currentPlayer,
+    farmDeliveries,
+    farmStats,
+    weeklyAttendance,
+    recruiterStats,
+    newMembers,
+    recruitmentOverview,
     loading,
+    error,
+
+    // Funções
     refreshData,
     setMembers,
-    setBlacklist
+    setBlacklist,
   };
 }
