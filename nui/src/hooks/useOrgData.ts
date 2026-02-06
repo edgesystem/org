@@ -66,6 +66,19 @@ export function useOrgData(): UseOrgDataReturn {
   const [error, setError] = useState<string | null>(null);
 
   /**
+   * ✅ Helper para lidar com callbacks que não existem no servidor
+   */
+  const safeFetchNui = async <T,>(event: string, fallback: T): Promise<T> => {
+    try {
+      const result = await fetchNui<T>(event);
+      return result || fallback;
+    } catch (err) {
+      console.warn(`[useOrgData] Callback ${event} não disponível, usando fallback`, err);
+      return fallback;
+    }
+  };
+
+  /**
    * Busca todos os dados do backend
    * Chamado na montagem e após qualquer ação que altere dados
    */
@@ -91,20 +104,20 @@ export function useOrgData(): UseOrgDataReturn {
         newMembersData,
         recruitmentOverviewData,
       ] = await Promise.all([
-        fetchNui<OrgInfo | null>('orgpanel:getMyOrgInfo'),
-        fetchNui<Overview | null>('orgpanel:getOverview'),
-        fetchNui<FarmConfig | null>('orgpanel:getFarmConfig'),
-        fetchNui<FarmProgress | null>('orgpanel:getMyFarmProgress'),
-        fetchNui<Member[]>('orgpanel:getMembers'),
-        fetchNui<any[]>('orgpanel:getTransactions'),
-        fetchNui<any[]>('orgpanel:getBannedMembers'),
-        fetchNui<CurrentPlayer | null>('orgpanel:getCurrentPlayer'),
-        fetchNui<FarmDelivery[]>('orgpanel:getFarmDeliveries'),
-        fetchNui<FarmStats | null>('orgpanel:getFarmStats'),
-        fetchNui<MemberWeeklyAttendance[]>('orgpanel:getWeeklyAttendance'),
-        fetchNui<RecruiterStats[]>('orgpanel:getRecruiterStats'),
-        fetchNui<NewMember[]>('orgpanel:getNewMembers'),
-        fetchNui<RecruitmentOverview | null>('orgpanel:getRecruitmentOverview'),
+        safeFetchNui<OrgInfo | null>('orgpanel:getMyOrgInfo', null),
+        safeFetchNui<Overview | null>('orgpanel:getOverview', null),
+        safeFetchNui<FarmConfig | null>('orgpanel:getFarmConfig', null),
+        safeFetchNui<FarmProgress | null>('orgpanel:getMyFarmProgress', null),
+        safeFetchNui<Member[]>('orgpanel:getMembers', []),
+        safeFetchNui<any[]>('orgpanel:getTransactions', []),
+        safeFetchNui<any[]>('orgpanel:getBannedMembers', []),
+        safeFetchNui<CurrentPlayer | null>('orgpanel:getCurrentPlayer', null),
+        safeFetchNui<FarmDelivery[]>('orgpanel:getFarmDeliveries', []),
+        safeFetchNui<FarmStats | null>('orgpanel:getFarmStats', null),
+        safeFetchNui<MemberWeeklyAttendance[]>('orgpanel:getWeeklyAttendance', []),
+        safeFetchNui<RecruiterStats[]>('orgpanel:getRecruiterStats', []),
+        safeFetchNui<NewMember[]>('orgpanel:getNewMembers', []),
+        safeFetchNui<RecruitmentOverview | null>('orgpanel:getRecruitmentOverview', null),
       ]);
 
       // Atualizar estados

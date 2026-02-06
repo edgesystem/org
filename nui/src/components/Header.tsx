@@ -22,6 +22,12 @@ export function Header({ activeTab, setActiveTab, bankBalance, orgLabel, onlineC
     onClose();
   };
 
+  // ✅ FIX: Converter balance para number (pode vir como string do servidor)
+  const balanceNumber = typeof bankBalance === 'string' ? parseFloat(bankBalance) : bankBalance;
+  const balanceFormatted = !isNaN(balanceNumber) 
+    ? balanceNumber.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '0.00';
+
   return (
     <div className="fixed top-0 left-0 right-0 z-50 h-[334px] bg-black">
       {/* Background header - usando gradiente em vez de imagem */}
@@ -59,7 +65,7 @@ export function Header({ activeTab, setActiveTab, bankBalance, orgLabel, onlineC
               <div className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-[#00ff9d]" />
                 <p className="text-[#00ff9d] text-2xl font-['Arimo:Bold',sans-serif]">
-                  {bankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {balanceFormatted}
                 </p>
               </div>
             </div>

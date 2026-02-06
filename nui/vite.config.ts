@@ -5,7 +5,7 @@
 
   export default defineConfig({
   plugins: [react()],
-  base: '/', // SEM o ./ para funcionar no FiveM
+  base: './', // ✅ CORRETO: gera caminhos relativos ./assets/xxx.js
   resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {

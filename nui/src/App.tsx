@@ -331,7 +331,9 @@ export default function App() {
     );
   }
 
-  return (
+  // ✅ WRAP TUDO EM TRY/CATCH
+  try {
+    return (
     <div 
       className="min-h-screen bg-black relative overflow-hidden"
       style={{ 
@@ -495,4 +497,20 @@ export default function App() {
       )}
     </div>
   );
+  } catch (error) {
+    console.error('[App] Erro crítico no render:', error);
+    return (
+      <div 
+        className="min-h-screen bg-black flex items-center justify-center"
+        style={{ 
+          display: isVisible ? 'flex' : 'none',
+          pointerEvents: isVisible ? 'all' : 'none'
+        }}
+      >
+        <div className="text-red-500 text-xl">
+          Erro ao renderizar painel. Verifique console F12.
+        </div>
+      </div>
+    );
+  }
 }
