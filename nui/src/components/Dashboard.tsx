@@ -1,5 +1,19 @@
 import { useEffect, useState, ReactNode } from "react";
 import { TrendingUp, Clock, Crown, Radio, MapPin, Settings, Trophy, Pencil } from "lucide-react";
+import { fetchNui } from "../lib/nui";
+
+// Helper function to safely format numbers
+function safeFormatNumber(value: any, decimals: number = 0): string {
+  if (value == null || isNaN(Number(value))) return decimals > 0 ? "0,00" : "0";
+  try {
+    return Number(value).toLocaleString('pt-BR', { 
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals 
+    });
+  } catch {
+    return decimals > 0 ? "0,00" : "0";
+  }
+}
 
 interface DashboardProps {
   onDeliverGoal: () => void;
@@ -16,16 +30,27 @@ interface DashboardProps {
 export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxGoal, pricePerUnit, leaderMessage, members, farmProgress, FarmProgressComponent }: DashboardProps) {
   const [goalAmount, setGoalAmount] = useState(0);
 
-  // Sincronizar goalAmount com farmProgress.realProgress se disponível
+  // Sincronizar goalAmount com progresso real (currentQuantity ou realProgress do backend)
   useEffect(() => {
-    if (farmProgress && typeof farmProgress.realProgress === 'number') {
-      setGoalAmount(farmProgress.realProgress);
+    if (farmProgress) {
+      const value = typeof (farmProgress as any).realProgress === 'number'
+        ? (farmProgress as any).realProgress
+        : farmProgress.currentQuantity;
+      setGoalAmount(Number(value) || 0);
     }
   }, [farmProgress]);
 
   const today = new Date();
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const daysUntilEndOfMonth = Math.ceil((lastDayOfMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  const handleRadioClick = () => {
+    fetchNui("orgpanel:openRadio");
+  };
+
+  const handleWaypointClick = () => {
+    fetchNui("orgpanel:setWaypoint");
+  };
 
   // Dados reais dos rankings
   const leaders = members
@@ -189,9 +214,9 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-white text-3xl font-['Arimo:Bold',sans-serif]">
-                  {goalAmount.toLocaleString('pt-BR')}
+                  {safeFormatNumber(goalAmount)}
                 </span>
-                <span className="text-[#99a1af] text-sm">/{maxGoal.toLocaleString('pt-BR')}</span>
+                <span className="text-[#99a1af] text-sm">/{safeFormatNumber(maxGoal)}</span>
               </div>
             </div>
           </div>
@@ -201,11 +226,11 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
             <div className="text-center mb-4">
               <p className="text-[#99a1af] text-sm mb-1">Você receberá</p>
               <p className="text-white text-3xl font-['Arimo:Bold',sans-serif]">
-                R$ {currentReward.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                R$ {safeFormatNumber(currentReward, 2)}
               </p>
               <div className="mt-2 text-xs text-[#99a1af]">
                 <p>
-                  ({goalAmount.toLocaleString('pt-BR')} × R$ {(pricePerUnit / Math.max(maxGoal, 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                  ({safeFormatNumber(goalAmount)} × R$ {safeFormatNumber(pricePerUnit / Math.max(maxGoal, 1), 2)})
                 </p>
               </div>
             </div>
@@ -218,15 +243,15 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-[#99a1af]">Meta:</span>
-                  <span className="text-white">{maxGoal.toLocaleString('pt-BR')} entregas</span>
+                  <span className="text-white">{safeFormatNumber(maxGoal)} entregas</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#99a1af]">Valor total:</span>
-                  <span className="text-white">R$ {pricePerUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-white">R$ {safeFormatNumber(pricePerUnit, 2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#99a1af]">Por entrega:</span>
-                  <span className="text-white">R$ {(pricePerUnit / Math.max(maxGoal, 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-white">R$ {safeFormatNumber(pricePerUnit / Math.max(maxGoal, 1), 2)}</span>
                 </div>
               </div>
             </div>
@@ -279,7 +304,7 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
                     </div>
                     <div className="text-right">
                       <p className={`text-sm font-['Arimo:Bold',sans-serif] ${color.text}`}>
-                        {(member.weeklyTotal || 0).toLocaleString('pt-BR')}
+                        {safeFormatNumber(member.weeklyTotal || 0)}
                       </p>
                       <p className="text-[#99a1af] text-xs">entregas</p>
                     </div>
@@ -303,6 +328,13 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
             <h2 className="text-white text-lg font-['Arimo:Bold',sans-serif]">
               Mensagens do Líder
             </h2>
+            <button
+              onClick={onEditLeaderMessage}
+              className="bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 transition-colors rounded-lg p-2"
+              title="Editar mensagem"
+            >
+              <Pencil className="w-4 h-4 text-[#D4AF37]" />
+            </button>
           </div>
           <div className="space-y-2">
             {leaderMessage ? (
@@ -326,10 +358,10 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
             {leaders.length > 0 ? (
               leaders.map((leader, index) => (
                 <div key={leader.id || index} className="bg-[rgba(0,0,0,0.54)] rounded-[10px] px-4 py-3 flex items-center gap-3">
-                  <Crown className="w-5 h-5 text-[#D4AF37]" />
-                  <div className="flex-1">
+                  <Crown className="w-5 h-5 text-[#D4AF37] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
                     <p className="text-[#D4AF37] text-xs">{leader.rank}</p>
-                    <p className="text-white text-base">{leader.name || "Desconhecido"}</p>
+                    <p className="text-white text-base truncate">{leader.id || leader.citizenid ? `${leader.id || leader.citizenid} | ${leader.name || "Desconhecido"}` : (leader.name || "Desconhecido")}</p>
                   </div>
                   {leader.online && (
                     <div className="flex items-center gap-1.5">
@@ -347,23 +379,30 @@ export function Dashboard({ onDeliverGoal, onEditGoal, onEditLeaderMessage, maxG
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - estilo premium com botão interno */}
         <div className="grid grid-cols-2 gap-4">
-          <button className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6 hover:border-[rgba(161,18,18,0.6)] transition-colors">
-            <Radio className="w-6 h-6 text-[#D4AF37] mx-auto mb-2" />
-            <p className="text-white text-sm font-['Arimo:Bold',sans-serif]">Rádio</p>
-            <button className="w-full mt-3 bg-[#a11212] hover:bg-[#8a0f0f] transition-colors rounded-lg py-2 text-white text-sm">
+          <div className="group bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6 hover:border-[rgba(161,18,18,0.6)] transition-all">
+            <Radio className="w-6 h-6 text-[#D4AF37] mx-auto mb-2 block group-hover:scale-110 transition-transform" />
+            <p className="text-white text-sm font-['Arimo:Bold',sans-serif] text-center">Rádio</p>
+            <button
+              type="button"
+              onClick={handleRadioClick}
+              className="w-full mt-3 bg-[#a11212] hover:bg-[#8a0f0f] transition-colors rounded-lg py-2 text-white text-sm font-['Arimo:Regular',sans-serif]"
+            >
               Entrar
             </button>
-          </button>
-
-          <button className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6 hover:border-[rgba(161,18,18,0.6)] transition-colors">
-            <MapPin className="w-6 h-6 text-[#D4AF37] mx-auto mb-2" />
-            <p className="text-white text-sm font-['Arimo:Bold',sans-serif]">Localização</p>
-            <button className="w-full mt-3 bg-[#a11212] hover:bg-[#8a0f0f] transition-colors rounded-lg py-2 text-white text-sm">
+          </div>
+          <div className="group bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6 hover:border-[rgba(161,18,18,0.6)] transition-all">
+            <MapPin className="w-6 h-6 text-[#D4AF37] mx-auto mb-2 block group-hover:scale-110 transition-transform" />
+            <p className="text-white text-sm font-['Arimo:Bold',sans-serif] text-center">Localização</p>
+            <button
+              type="button"
+              onClick={handleWaypointClick}
+              className="w-full mt-3 bg-[#a11212] hover:bg-[#8a0f0f] transition-colors rounded-lg py-2 text-white text-sm font-['Arimo:Regular',sans-serif]"
+            >
               Marcar
             </button>
-          </button>
+          </div>
         </div>
       </div>
     </div>

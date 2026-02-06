@@ -1,5 +1,14 @@
 import React from "react";
-import { Button } from "./ui/button";
+
+// Helper function to safely format numbers
+function safeFormatNumber(value: any, decimals: number = 0): string {
+  if (value == null || isNaN(Number(value))) return decimals > 0 ? "0,00" : "0";
+  try {
+    return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  } catch {
+    return decimals > 0 ? "0,00" : "0";
+  }
+}
 
 interface FarmProgressArcProps {
   dailyGoal: number;
@@ -18,70 +27,76 @@ export const FarmProgressArc: React.FC<FarmProgressArcProps> = ({
 }) => {
   const radius = 80;
   const circumference = 2 * Math.PI * radius;
-  
-  // Progresso total da meta
   const totalProgress = Math.min(currentQuantity / Math.max(dailyGoal, 1), 1);
   const totalOffset = circumference - totalProgress * circumference;
 
-  // Cor dinâmica baseada no progresso
+  // Cores no tema do painel (vermelho/dourado)
   const getProgressColor = () => {
-    if (totalProgress < 0.3) return "#22c55e"; // Verde
-    if (totalProgress < 0.6) return "#eab308"; // Amarelo
-    if (totalProgress < 0.9) return "#f97316"; // Laranja
-    return "#ef4444"; // Vermelho
+    if (totalProgress < 0.3) return "#22c55e";
+    if (totalProgress < 0.6) return "#eab308";
+    if (totalProgress < 0.9) return "#f97316";
+    return "#a11212";
   };
 
-  return (
-    <div className="flex flex-col items-center justify-center p-6 bg-zinc-900/50 rounded-xl border border-white/10">
-      <div className="relative w-48 h-48">
-        <svg className="w-full h-full transform -rotate-90">
-          {/* Arco Externo (Meta Total) */}
-          <circle
-            cx="96"
-            cy="96"
-            r={radius}
-            stroke="currentColor"
-            strokeWidth="12"
-            fill="transparent"
-            className="text-zinc-800"
-          />
-          {/* Arco Interno (Progresso Atual) */}
-          <circle
-            cx="96"
-            cy="96"
-            r={radius}
-            stroke={getProgressColor()}
-            strokeWidth="12"
-            strokeDasharray={circumference}
-            strokeDashoffset={totalOffset}
-            strokeLinecap="round"
-            fill="transparent"
-            className="transition-all duration-1000 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white rotate-0">
-          <span className="text-2xl font-bold">{currentQuantity}</span>
-          <span className="text-xs text-zinc-400 uppercase tracking-widest border-t border-white/10 mt-1 pt-1">
-            Meta: {dailyGoal}
-          </span>
-        </div>
-      </div>
+  const canClaim = !rewardClaimed && currentQuantity >= dailyGoal && dailyGoal > 0;
 
-      <div className="mt-6 text-center">
-        <p className="text-zinc-400 text-sm mb-1">Se completar agora:</p>
-        <p className="text-white text-xl font-bold">R$ {potentialReward.toLocaleString('pt-BR')},00</p>
-        
-        <Button
-          onClick={onClaim}
-          disabled={rewardClaimed || currentQuantity < dailyGoal}
-          className={`mt-4 w-full h-12 uppercase font-bold tracking-widest transition-all ${
-            rewardClaimed 
-              ? "bg-zinc-800 text-zinc-500 cursor-not-allowed" 
-              : "bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)]"
-          }`}
-        >
-          {rewardClaimed ? "Coletado" : "Coletar Recompensa"}
-        </Button>
+  return (
+    <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6">
+      <h2 className="text-white text-lg font-['Arimo:Bold',sans-serif] mb-4">
+        Entrega de Farm
+      </h2>
+      <div className="flex flex-col items-center justify-center">
+        <div className="relative w-48 h-48">
+          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 192 192">
+            <circle
+              cx="96"
+              cy="96"
+              r={radius}
+              stroke="rgba(161,18,18,0.2)"
+              strokeWidth="12"
+              fill="transparent"
+            />
+            <circle
+              cx="96"
+              cy="96"
+              r={radius}
+              stroke={getProgressColor()}
+              strokeWidth="12"
+              strokeDasharray={circumference}
+              strokeDashoffset={totalOffset}
+              strokeLinecap="round"
+              fill="transparent"
+              className="transition-all duration-700 ease-out"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+            <span className="text-3xl font-['Arimo:Bold',sans-serif]">{currentQuantity}</span>
+            <span className="text-xs text-[#99a1af] uppercase tracking-wider border-t border-[rgba(255,255,255,0.1)] mt-1 pt-1">
+              Meta: {dailyGoal}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-6 text-center w-full">
+          <p className="text-[#99a1af] text-sm mb-1">Se completar agora:</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif] text-[#00ff9d]">
+            R$ {safeFormatNumber(potentialReward, 2)}
+          </p>
+          <button
+            type="button"
+            onClick={onClaim}
+            disabled={!canClaim}
+            className={`mt-4 w-full h-12 rounded-[10px] text-sm font-['Arimo:Bold',sans-serif] uppercase tracking-wider transition-all ${
+              rewardClaimed
+                ? "bg-[rgba(0,0,0,0.5)] text-[#99a1af] cursor-not-allowed border border-[rgba(161,18,18,0.2)]"
+                : canClaim
+                  ? "bg-[#00ff9d]/20 hover:bg-[#00ff9d]/30 border border-[#00ff9d]/40 text-[#00ff9d] shadow-[0_0_20px_rgba(0,255,157,0.2)]"
+                  : "bg-[#a11212]/30 border border-[rgba(161,18,18,0.4)] text-[#99a1af] cursor-not-allowed"
+            }`}
+          >
+            {rewardClaimed ? "Coletado" : canClaim ? "Coletar Recompensa" : "Complete a meta para coletar"}
+          </button>
+        </div>
       </div>
     </div>
   );

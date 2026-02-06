@@ -1,5 +1,15 @@
 import { Calendar, Check, X, Clock } from "lucide-react";
 
+// Helper function to safely format numbers
+function safeFormatNumber(value: any): string {
+  if (value == null || isNaN(Number(value))) return "0";
+  try {
+    return Number(value).toLocaleString('pt-BR');
+  } catch {
+    return "0";
+  }
+}
+
 interface FarmsProps {
   members: any[];
 }
@@ -41,16 +51,16 @@ export function Farms({ members }: FarmsProps) {
 
       {/* Stats REAIS */}
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border border-[rgba(161,18,18,0.4)] p-4">
+        <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Total Semanal</p>
           <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">
-            {totalWeekly.toLocaleString('pt-BR')}
+            {safeFormatNumber(totalWeekly)}
           </p>
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Média Diária</p>
           <p className="text-[#00ff9d] text-2xl font-['Arimo:Bold',sans-serif]">
-            {avgDaily.toLocaleString('pt-BR')}
+            {safeFormatNumber(avgDaily)}
           </p>
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
@@ -62,7 +72,7 @@ export function Farms({ members }: FarmsProps) {
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Entregas Hoje</p>
           <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">
-            {todayTotal.toLocaleString('pt-BR')}
+            {safeFormatNumber(todayTotal)}
           </p>
         </div>
       </div>

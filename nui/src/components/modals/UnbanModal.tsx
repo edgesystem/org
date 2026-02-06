@@ -9,10 +9,13 @@ interface UnbanModalProps {
 export function UnbanModal({ member, onClose }: UnbanModalProps) {
   const [reason, setReason] = useState("");
 
-  const handleUnban = () => {
-    if (reason.trim() && member.onConfirm) {
-      member.onConfirm(member, reason);
+  const handleUnban = async () => {
+    if (!reason.trim() || !member.onConfirm) return;
+    try {
+      await Promise.resolve(member.onConfirm(member, reason));
       onClose();
+    } catch (e) {
+      console.error("Erro ao desbanir:", e);
     }
   };
 

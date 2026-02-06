@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { UserPlus, X, Search, Crown, AlertCircle } from "lucide-react";
+import { fetchNui } from "../../lib/nui";
 
 interface RecruitModalProps {
   onClose: () => void;
@@ -20,11 +21,23 @@ interface BlacklistMember {
 interface PlayerData {
   id: string;
   name: string;
-  vip: boolean;
-  vipType?: "VIP Bronze" | "VIP Prata" | "VIP Ouro" | "VIP Platina" | "VIP Diamante";
   level: number;
-  playtime: string;
+  playtime: number;
   online: boolean;
+  vip: boolean;
+  vipType?: string;
+}
+
+interface SearchResponse {
+  success: boolean;
+  message?: string;
+  id?: string;
+  name?: string;
+  level?: number;
+  playtime?: number;
+  online?: boolean;
+  vip?: boolean;
+  vip_type?: string;
 }
 
 export function RecruitModal({ onClose, onConfirm, existingMemberIds, blacklist }: RecruitModalProps) {
@@ -33,14 +46,15 @@ export function RecruitModal({ onClose, onConfirm, existingMemberIds, blacklist 
   const [error, setError] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
+    if (!playerId.trim()) return;
+    
     setError("");
     setPlayerData(null);
     setIsSearching(true);
 
-    // Simulate API delay
-    setTimeout(() => {
-      // 1. PRIMEIRA VERIFICAÇÃO: Lista Negra (PRIORIDADE MÁXIMA) - sincronizado com PD
+    try {
+      // 1. PRIMEIRA VERIFICAÇÃO: Lista Negra (PRIORIDADE MÁXIMA)
       const blacklistedPlayer = blacklist.find(banned => banned.id === playerId);
       if (blacklistedPlayer) {
         setError(`Este jogador está na lista negra da aba PD (${blacklistedPlayer.name} - ${blacklistedPlayer.reason})`);
@@ -48,53 +62,42 @@ export function RecruitModal({ onClose, onConfirm, existingMemberIds, blacklist 
         return;
       }
 
-      // 2. SEGUNDA VERIFICAÇÃO: Já é membro da organização - sincronizado com Membros
+      // 2. SEGUNDA VERIFICAÇÃO: Já é membro da organização
       if (existingMemberIds.includes(playerId)) {
         setError("Este jogador já faz parte da organização");
         setIsSearching(false);
         return;
       }
 
-      // 3. TERCEIRA VERIFICAÇÃO: ID inválido (não existe no servidor) - apenas ID 999999
-      if (playerId === "999999") {
-        setError("Jogador não encontrado no servidor - ID não existe");
+      // 3. BUSCAR DADOS REAIS DO JOGADOR via FiveM
+      const response = await fetchNui("orgpanel:getPlayerById", { targetId: playerId }) as unknown as SearchResponse;
+      
+      if (!response || !(response as any).success) {
+        setError((response as any).message || "Jogador não encontrado no servidor");
         setIsSearching(false);
         return;
       }
 
-      // 4. SUCESSO: Gerar dados do jogador válido
-      const seed = parseInt(playerId) || 0;
-      const randomNames = [
-        "Carlos Eduardo", "Fernanda Silva", "Roberto Santos", "Ana Paula", "João Pedro",
-        "Marina Costa", "Felipe Alves", "Juliana Mendes", "Ricardo Souza", "Patricia Lima",
-        "Bruno Oliveira", "Camila Santos", "Diego Rocha", "Amanda Ferreira", "Lucas Martins",
-        "Isabela Dias", "Rafael Cardoso", "Beatriz Nunes", "Thiago Barbosa", "Larissa Pinto",
-        "Gustavo Reis", "Leticia Carvalho", "Rodrigo Gomes", "Gabriela Teixeira", "Vinicius Moreira"
-      ];
-      const vipTypes: Array<"VIP Bronze" | "VIP Prata" | "VIP Ouro" | "VIP Platina" | "VIP Diamante"> = [
-        "VIP Bronze", "VIP Prata", "VIP Ouro", "VIP Platina", "VIP Diamante"
-      ];
-      const nameIndex = seed % randomNames.length;
-      const hasVip = seed % 3 !== 0; // 66% de chance de ter VIP
-      const vipIndex = seed % vipTypes.length;
-      const level = 15 + (seed % 80); // Nível entre 15 e 95
-      const hours = 50 + (seed % 650); // Horas entre 50 e 700
-      const minutes = seed % 60;
-      const isOnline = seed % 4 !== 0; // 75% de chance de estar online
-
-      const data: PlayerData = {
-        id: playerId,
-        name: randomNames[nameIndex],
-        vip: hasVip,
-        vipType: hasVip ? vipTypes[vipIndex] : undefined,
-        level,
-        playtime: `${hours}h ${minutes}min`,
-        online: isOnline,
-      };
-
-      setPlayerData(data);
+      const data = response as SearchResponse;
+      if (data.id) {
+        setPlayerData({
+          id: data.id,
+          name: data.name || 'Desconhecido',
+          level: data.level || 1,
+          playtime: data.playtime || 0,
+          online: data.online || false,
+          vip: data.vip || false,
+          vipType: data.vip_type
+        });
+      } else {
+        setError("Jogador não encontrado");
+      }
+    } catch (e) {
+      console.error("Erro ao buscar jogador:", e);
+      setError("Erro ao buscar dados do jogador");
+    } finally {
       setIsSearching(false);
-    }, 800);
+    }
   };
 
   const handleRecruit = () => {
@@ -183,47 +186,6 @@ export function RecruitModal({ onClose, onConfirm, existingMemberIds, blacklist 
               )}
             </button>
           </div>
-          
-          {/* Guia de Testes - Sincronizado com dados reais */}
-          <div className="mt-3 p-3 bg-[rgba(0,0,0,0.3)] border border-[rgba(161,18,18,0.2)] rounded-lg">
-            <p className="text-[#99a1af] text-xs mb-2 font-['Arimo:Bold',sans-serif]">
-              💡 Teste com IDs reais do sistema:
-            </p>
-            <div className="space-y-1.5 text-xs">
-              <div>
-                <p className="text-[#B31B1B] font-['Arimo:Bold',sans-serif] mb-0.5">
-                  🚫 Blacklist (PD):
-                </p>
-                <p className="text-[#99a1af] ml-3">
-                  45678 (João Silva), 23456 (Pedro Oliveira), 34567 (Lucas Santos)
-                </p>
-              </div>
-              <div>
-                <p className="text-[#FFD700] font-['Arimo:Bold',sans-serif] mb-0.5">
-                  👥 Já é membro:
-                </p>
-                <p className="text-[#99a1af] ml-3">
-                  97606 (Leonardo lima), 1968 (Patricio Belford), 63283 (Bonnie Snowden)
-                </p>
-              </div>
-              <div>
-                <p className="text-[#ff6b6b] font-['Arimo:Bold',sans-serif] mb-0.5">
-                  ❌ ID inválido:
-                </p>
-                <p className="text-[#99a1af] ml-3">
-                  999999 (não existe)
-                </p>
-              </div>
-              <div>
-                <p className="text-[#00ff9d] font-['Arimo:Bold',sans-serif] mb-0.5">
-                  ✅ ID válido:
-                </p>
-                <p className="text-[#99a1af] ml-3">
-                  12345, 54321, 88888, 77777
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Error message */}
@@ -289,7 +251,7 @@ export function RecruitModal({ onClose, onConfirm, existingMemberIds, blacklist 
               <div>
                 <p className="text-[#99a1af] text-xs mb-1">Tempo jogado</p>
                 <p className="text-white text-base font-['Arimo:Bold',sans-serif]">
-                  {playerData.playtime}
+                  {Math.floor(playerData.playtime / 60)}h {playerData.playtime % 60}min
                 </p>
               </div>
               <div>

@@ -7,6 +7,12 @@ interface RecruitmentStats {
   total: number;
 }
 
+interface RetentionMetric {
+  period: string;
+  retention: number;
+  total: number;
+}
+
 interface RecruitmentMember {
   id: string;
   name: string;
@@ -18,6 +24,13 @@ interface RecruitmentMember {
 
 export function Recruitment() {
   const [recruiters, setRecruiters] = useState<RecruitmentStats[]>([]);
+  const [retentionMetrics, setRetentionMetrics] = useState<RetentionMetric[]>([
+    { period: "1 dia", retention: 0, total: 0 },
+    { period: "7 dias", retention: 0, total: 0 },
+    { period: "14 dias", retention: 0, total: 0 },
+    { period: "30 dias", retention: 0, total: 0 },
+  ]);
+  const [newMembers, setNewMembers] = useState<RecruitmentMember[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,9 +39,14 @@ export function Recruitment() {
 
   const loadRecruitmentData = async () => {
     try {
-      const stats = await fetchNui<RecruitmentStats[]>("orgpanel:getRecruitmentStats");
-      if (stats) {
-        setRecruiters(stats);
+      const [stats, retentionRaw] = await Promise.all([
+        fetchNui("orgpanel:getRecruitmentStats" as any),
+        fetchNui("orgpanel:getRetentionMetrics" as any),
+      ]);
+      if (stats) setRecruiters(stats);
+      const retention = retentionRaw as RetentionMetric[];
+      if (retention && retention.length === 4) {
+        setRetentionMetrics(retention);
       }
     } catch (e) {
       console.error("Erro ao carregar dados de recrutamento:", e);
@@ -40,14 +58,6 @@ export function Recruitment() {
   // Calcular métricas baseadas nos dados reais
   const totalRecruited = recruiters.reduce((acc, r) => acc + (r.total || 0), 0);
   const avgRecruitment = recruiters.length > 0 ? Math.round(totalRecruited / recruiters.length) : 0;
-  
-  // Métricas simuladas baseadas em dados reais (o servidor pode retornar isso)
-  const retentionMetrics = [
-    { period: "1 dia", retention: 100, total: totalRecruited },
-    { period: "7 dias", retention: 92, total: Math.round(totalRecruited * 0.92) },
-    { period: "14 dias", retention: 85, total: Math.round(totalRecruited * 0.85) },
-    { period: "30 dias", retention: 78, total: Math.round(totalRecruited * 0.78) },
-  ];
 
   if (loading) {
     return (
@@ -181,7 +191,7 @@ export function Recruitment() {
         </div>
       </div>
 
-      {/* New Members List - Placeholder para dados futuros */}
+      {/* Novos Membros (30 dias) - tabela premium, dados do backend quando disponível */}
       <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6">
         <div className="flex items-center gap-2 mb-6">
           <Users className="w-5 h-5 text-[#D4AF37]" />
@@ -190,10 +200,52 @@ export function Recruitment() {
           </h2>
         </div>
 
-        <div className="text-center py-12 bg-[rgba(0,0,0,0.3)] rounded-lg">
-          <p className="text-[#99a1af] text-sm">
-            Em breve: Lista de novos membros com status de atividade
-          </p>
+        <div className="space-y-2">
+          <div className="grid grid-cols-6 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.54)] rounded-t-lg">
+            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">ID</div>
+            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Nome</div>
+            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Recrutador</div>
+            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Data de Entrada</div>
+            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Tempo</div>
+            <div className="text-[#99a1af] text-sm font-['Arimo:Bold',sans-serif]">Status</div>
+          </div>
+
+          {newMembers.length > 0 ? (
+            newMembers.map((member) => (
+              <div
+                key={member.id}
+                className="grid grid-cols-6 gap-4 px-4 py-3 bg-[rgba(0,0,0,0.3)] hover:bg-[rgba(0,0,0,0.5)] transition-colors rounded-lg items-center"
+              >
+                <div className="text-white text-sm font-mono">{member.id}</div>
+                <div className="text-white text-sm">{member.name}</div>
+                <div className="text-[#99a1af] text-sm">{member.recruiter}</div>
+                <div className="text-white text-sm">{member.joinDate}</div>
+                <div className="text-white text-sm">{member.days} dias</div>
+                <div>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+                      member.active ? "bg-[#00ff9d]/20 text-[#00ff9d]" : "bg-[#a11212]/20 text-[#a11212]"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${member.active ? "bg-[#00ff9d]" : "bg-[#a11212]"}`} />
+                    {member.active ? "Ativo" : "Inativo"}
+                  </span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-b-lg overflow-hidden">
+              <div className="bg-[rgba(0,0,0,0.3)] rounded-lg px-4 py-12 text-center">
+                <Users className="w-10 h-10 text-[#99a1af]/50 mx-auto mb-3" />
+                <p className="text-[#99a1af] text-sm font-['Arimo:Regular',sans-serif]">
+                  Nenhum novo membro nos últimos 30 dias
+                </p>
+                <p className="text-[#99a1af] text-xs mt-1">
+                  Os recrutados aparecerão aqui quando o backend enviar a lista
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

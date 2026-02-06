@@ -1,6 +1,19 @@
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { useState } from "react";
 
+// Helper function to safely format numbers
+function safeFormatNumber(value: any, decimals: number = 0): string {
+  if (value == null || isNaN(Number(value))) return decimals > 0 ? "0,00" : "0";
+  try {
+    return Number(value).toLocaleString('pt-BR', { 
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals 
+    });
+  } catch {
+    return decimals > 0 ? "0,00" : "0";
+  }
+}
+
 interface BankProps {
   balance: number;
   transactions: Transaction[];
@@ -63,7 +76,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
             <div>
               <p className="text-[#99a1af] text-sm mb-2">Saldo Total da Organização</p>
               <p className="text-white text-5xl font-['Arimo:Bold',sans-serif]">
-                ${balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                R$ {safeFormatNumber(balance, 2)}
               </p>
             </div>
             <CreditCard className="w-12 h-12 text-[#D4AF37]" />
@@ -75,7 +88,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#00ff9d]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  ${stats.weeklyIncome.toLocaleString('pt-BR')}
+                  R$ {safeFormatNumber(stats.weeklyIncome)}
                 </p>
               </div>
             </div>
@@ -84,7 +97,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-[#a11212]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  ${stats.weeklyExpenses.toLocaleString('pt-BR')}
+                  R$ {safeFormatNumber(stats.weeklyExpenses)}
                 </p>
               </div>
             </div>
@@ -93,7 +106,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#00ff9d]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  ${stats.monthlyIncome.toLocaleString('pt-BR')}
+                  R$ {safeFormatNumber(stats.monthlyIncome)}
                 </p>
               </div>
             </div>
@@ -102,7 +115,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-[#a11212]" />
                 <p className="text-white text-lg font-['Arimo:Bold',sans-serif]">
-                  ${stats.monthlyExpenses.toLocaleString('pt-BR')}
+                  R$ {safeFormatNumber(stats.monthlyExpenses)}
                 </p>
               </div>
             </div>
@@ -155,8 +168,7 @@ export function Bank({ balance, transactions, onDeposit, onWithdraw }: BankProps
                   transaction.amount > 0 ? "text-[#00ff9d]" : "text-[#a11212]"
                 }`}
               >
-                {transaction.amount > 0 ? "+" : ""}$
-                {Math.abs(transaction.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {transaction.amount > 0 ? "+" : ""}R$ {Math.abs(transaction.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </div>
             </div>
           ))}

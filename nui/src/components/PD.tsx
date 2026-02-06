@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shield, AlertTriangle, UserX, Calendar, RotateCcw } from "lucide-react";
 import { fetchNui } from "../lib/nui";
 
@@ -17,12 +17,26 @@ interface SecurityLog {
 
 export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([
-    { type: "blocked", message: "Tentativa de recrutamento bloqueada - ID 45678 está na blacklist", time: "14:32", date: "05/02/2026" },
-    { type: "warning", message: "Atividade suspeita detectada - múltiplas tentativas de saque", time: "11:20", date: "04/02/2026" },
-    { type: "blocked", message: "Tentativa de recrutamento bloqueada - ID 23456 está na blacklist", time: "18:45", date: "03/02/2026" },
-    { type: "info", message: "Novo membro adicionado à blacklist - ID 45678", time: "16:30", date: "28/01/2026" },
-  ]);
+  const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
+  const [blockedToday, setBlockedToday] = useState(0);
+
+  // Carregar logs e contador do servidor
+  useEffect(() => {
+    const loadSecurityData = async () => {
+      try {
+        const logsRaw = await fetchNui("orgpanel:getSecurityLogs" as any);
+        const logs = logsRaw as SecurityLog[];
+        if (logs) setSecurityLogs(logs);
+        
+        const blockedRaw = await fetchNui("orgpanel:getBlockedTodayCount" as any);
+        const blocked = blockedRaw as { count: number };
+        if (blocked) setBlockedToday(blocked.count || 0);
+      } catch (e) {
+        console.error("Erro ao carregar dados de segurança:", e);
+      }
+    };
+    loadSecurityData();
+  }, []);
 
   const filteredBlacklist = blacklist.filter(member => 
     member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -83,7 +97,7 @@ export function PD({ onUnbanMember, blacklist, setBlacklist }: PDProps) {
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Bloqueios Hoje</p>
-          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">2</p>
+          <p className="text-white text-2xl font-['Arimo:Bold',sans-serif]">{blockedToday}</p>
         </div>
         <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-4">
           <p className="text-[#99a1af] text-xs mb-1">Status do Sistema</p>

@@ -9,6 +9,32 @@ export interface OrgInfo {
   balance: number;
 }
 
+export interface Transaction {
+  id: string;
+  type: "deposit" | "withdraw" | "farm";
+  description: string;
+  amount: number;
+  date: string;
+  time: string;
+  citizenid?: string;
+  created_at?: number;
+}
+
+export interface BlacklistMember {
+  id: string;
+  name: string;
+  reason: string;
+  bannedBy: string;
+  date: string;
+  severity: "critical" | "high" | "medium";
+}
+
+export interface CurrentPlayer {
+  citizenid: string;
+  name: string;
+  phone?: string;
+}
+
 export type RewardType = "per_unit" | "fixed";
 
 export interface FarmConfig {

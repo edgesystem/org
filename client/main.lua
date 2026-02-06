@@ -8,20 +8,42 @@ local isPanelOpen = false
 RegisterCommand('painelorg', function()
     if isPanelOpen then return end
 
-    -- Verificar se o jogador pertence a uma organizacao
+    print('[org_panel] === COMANDO PAINELORG EXECUTADO ===')
+    
+    -- Verificar se o jogador pertence a uma organizacao (COM TIMEOUT)
+    local startTime = GetGameTimer()
     lib.callback('orgpanel:getMyOrgInfo', false, function(orgInfo)
+        local elapsed = GetGameTimer() - startTime
+        print('[org_panel] Callback retornou em ' .. elapsed .. 'ms')
+        
         if not orgInfo then
+            print('[org_panel] ERRO: Jogador nao pertence a organizacao!')
             TriggerEvent('qb-core:client:Notify', 'Voce nao pertence a nenhuma organizacao!', 'error')
             return
         end
 
-        print('[org_panel] Abrindo painel para: ' .. orgInfo.label)
+        print('[org_panel] Sucesso! Abrindo painel para: ' .. tostring(orgInfo.label))
+        print('[org_panel] orgInfo completo: ' .. json.encode(orgInfo))
+        
         isPanelOpen = true
-        SetNuiFocus(true, true) -- true, true = focus E mouse para o NUI
-        SetNuiFocusKeepInput(false) -- FALSE = mouse NAO controla personagem
-        SendNUIMessage({
-            action = 'openPanel'
-        })
+        SetNuiFocus(true, true)
+        SetNuiFocusKeepInput(false)
+        
+        local msg = { action = 'openPanel', data = orgInfo }
+        print('[org_panel] Enviando mensagem openPanel para NUI')
+        SendNUIMessage(msg)
+        
+        -- Verificar se NUI esta respondendo apos 2 segundos
+        CreateThread(function()
+            Wait(2000)
+            print('[org_panel] Verificacao NUI: painel ainda esta aberto = ' .. tostring(isPanelOpen))
+        end)
+    end, function(err)
+        print('[org_panel] ERRO NO CALLBACK: ' .. tostring(err))
+        -- Mesmo com erro, tentar abrir o painel
+        isPanelOpen = true
+        SetNuiFocus(true, true)
+        SendNUIMessage({ action = 'openPanel', error = err })
     end)
 end, false)
 
@@ -29,8 +51,9 @@ end, false)
 -- NUI CALLBACKS
 -- =====================================================
 
+-- Fechar painel: NUI pode chamar 'closePanel' ou 'orgpanel:close'
 RegisterNUICallback('closePanel', function(data, cb)
-    print('[org_panel] Fechando painel')
+    print('[org_panel] Fechando painel (closePanel)')
     SetNuiFocus(false, false)
     SetNuiFocusKeepInput(false)
     isPanelOpen = false
@@ -53,6 +76,12 @@ end)
 
 RegisterNUICallback('orgpanel:getMyOrgInfo', function(data, cb)
     lib.callback('orgpanel:getMyOrgInfo', false, function(result)
+        cb(result)
+    end)
+end)
+
+RegisterNUICallback('orgpanel:getCurrentPlayer', function(data, cb)
+    lib.callback('orgpanel:getCurrentPlayer', false, function(result)
         cb(result)
     end)
 end)
@@ -138,7 +167,28 @@ end)
 RegisterNUICallback('orgpanel:unbanMember', function(data, cb)
     lib.callback('orgpanel:unbanMember', false, function(result)
         cb(result)
-    end)
+    end, data)
+end)
+
+RegisterNUICallback('orgpanel:updateFarmConfig', function(data, cb)
+    lib.callback('orgpanel:updateFarmConfig', false, function(result)
+        cb(result or { success = true })
+    end, data)
+end)
+
+RegisterNUICallback('orgpanel:openDiscord', function(data, cb)
+    -- Abrir link Discord ou trigger evento; ajuste conforme seu recurso
+    cb({ success = true })
+end)
+
+RegisterNUICallback('orgpanel:openRadio', function(data, cb)
+    -- Entrar no canal de rádio; ajuste conforme seu recurso
+    cb({ success = true })
+end)
+
+RegisterNUICallback('orgpanel:setWaypoint', function(data, cb)
+    -- Marcar waypoint no mapa; ajuste conforme seu recurso
+    cb({ success = true })
 end)
 
 -- =====================================================

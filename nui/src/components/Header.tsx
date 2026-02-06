@@ -1,18 +1,30 @@
 import { TabType } from "../App";
 import { Users, X, MessageCircle } from "lucide-react";
-import imgRectangle1984 from "figma:asset/a3bed3c7260b6bcacb2be941323d9c68785af310.png";
-import imgHeader from "figma:asset/5f5380810e5937b8b262591e79df134e9a163312.png";
+import { fetchNui } from "../lib/nui";
+import logoSrc from "../assets/5f5380810e5937b8b262591e79df134e9a163312.png";
+import headerImgSrc from "../assets/a3bed3c7260b6bcacb2be941323d9c68785af310.png";
+
+// Helper function to safely format numbers
+function safeFormatNumber(value: any): string {
+  if (value == null || isNaN(Number(value))) return "0";
+  try {
+    return Number(value).toLocaleString('pt-BR');
+  } catch {
+    return "0";
+  }
+}
 
 interface HeaderProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
+  onClose: () => void;
   bankBalance: number;
   membersOnline: number;
   maxMembers: number;
   orgLabel?: string;
 }
 
-export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, maxMembers, orgLabel }: HeaderProps) {
+export function Header({ activeTab, setActiveTab, onClose, bankBalance, membersOnline, maxMembers, orgLabel }: HeaderProps) {
   const tabs: TabType[] = ["INÍCIO", "MEMBROS", "FARMS", "RECRUTAMENTO", "BANCO", "PD"];
 
   const handleDiscordClick = () => {
@@ -20,15 +32,15 @@ export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, ma
   };
 
   const handleCloseClick = () => {
-    fetchNui("orgpanel:close");
+    onClose();
   };
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-50 h-[334px] bg-black">
+    <div className="relative w-full flex-shrink-0 h-[334px] bg-black">
       {/* Background header image */}
-      <div className="absolute inset-0 h-[277px]">
+      <div className="absolute inset-0 h-[277px] pointer-events-none">
         <img
-          src={imgHeader}
+          src={headerImgSrc}
           alt="Header"
           className="w-full h-full object-cover"
         />
@@ -40,7 +52,7 @@ export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, ma
         {/* Organization info */}
         <div className="flex items-center gap-3 mb-6">
           <img
-            src={imgRectangle1984}
+            src={logoSrc}
             alt="Logo"
             className="w-[60px] h-[60px] rounded-lg object-cover"
           />
@@ -70,7 +82,7 @@ export function Header({ activeTab, setActiveTab, bankBalance, membersOnline, ma
                   </svg>
                 </div>
                 <p className="text-[#00ff9d] text-2xl font-['Arimo:Bold',sans-serif]">
-                  {bankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {safeFormatNumber(bankBalance)}
                 </p>
               </div>
             </div>

@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { Target, X } from "lucide-react";
 
+// Helper function to safely format numbers
+function safeFormatNumber(value: any, decimals: number = 0): string {
+  if (value == null || isNaN(Number(value))) return decimals > 0 ? "0,00" : "0";
+  try {
+    return Number(value).toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  } catch {
+    return decimals > 0 ? "0,00" : "0";
+  }
+}
+
 interface EditGoalModalProps {
   currentGoal: number;
   currentPricePerUnit: number;
@@ -81,7 +91,7 @@ export function EditGoalModal({ currentGoal, currentPricePerUnit, onClose, onCon
               Valor Total da Meta
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#99a1af] text-lg">$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#99a1af] text-lg">R$</span>
               <input
                 type="number"
                 value={pricePerDelivery}
@@ -97,12 +107,12 @@ export function EditGoalModal({ currentGoal, currentPricePerUnit, onClose, onCon
             </p>
             {goalAmount && pricePerDelivery && parseFloat(goalAmount) > 0 && (
               <p className="text-[#D4AF37] text-xs mt-2">
-                💡 Cada entrega vale: ${(parseFloat(pricePerDelivery) / parseFloat(goalAmount)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                💡 Cada entrega vale: R$ {safeFormatNumber(parseFloat(pricePerDelivery) / parseFloat(goalAmount), 2)}
               </p>
             )}
           </div>
 
-          {/* Preview */}
+          {/* Resumo premium */}
           <div className="bg-[rgba(212,175,55,0.1)] border border-[rgba(212,175,55,0.3)] rounded-lg p-4">
             <p className="text-[#D4AF37] text-sm font-['Arimo:Bold',sans-serif] mb-3">
               📊 Resumo da Configuração
@@ -114,14 +124,19 @@ export function EditGoalModal({ currentGoal, currentPricePerUnit, onClose, onCon
               </div>
               <div>
                 <p className="text-[#99a1af]">Valor total:</p>
-                <p className="text-white font-['Arimo:Bold',sans-serif]">${(parseFloat(pricePerDelivery) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-white font-['Arimo:Bold',sans-serif]">R$ {safeFormatNumber(parseFloat(pricePerDelivery) || 0, 2)}</p>
               </div>
               <div>
                 <p className="text-[#99a1af]">Por entrega:</p>
                 <p className="text-[#00ff9d] font-['Arimo:Bold',sans-serif]">
-                  ${goalAmount && parseFloat(goalAmount) > 0 ? (parseFloat(pricePerDelivery) / parseFloat(goalAmount)).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0.00'}
+                  R$ {goalAmount && parseFloat(goalAmount) > 0 ? safeFormatNumber(parseFloat(pricePerDelivery) / parseFloat(goalAmount), 2) : "0,00"}
                 </p>
               </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-[rgba(212,175,55,0.2)]">
+              <p className="text-[#99a1af] text-xs">
+                O valor é pago proporcionalmente às entregas. Quem completar 100% da meta recebe o valor total.
+              </p>
             </div>
           </div>
         </div>

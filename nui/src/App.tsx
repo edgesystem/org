@@ -48,6 +48,7 @@ export default function App() {
     members,
     transactions,
     blacklist,
+    currentPlayer,
     loading,
     refreshData,
     setMembers,
@@ -101,19 +102,35 @@ export default function App() {
     };
   }, [refreshData]);
 
-  // Close panel function
+  // Close panel: tell Lua to release focus and hide UI
   const closePanel = () => {
     setIsVisible(false);
-    fetch(`https://${window.GetParentResourceName?.() || 'nui-dev'}/close`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }).catch(console.error);
+    fetchNui("orgpanel:close").catch(console.error);
   };
 
   // Don't render anything if not visible
   if (!isVisible) {
     return null;
   }
+
+  // DEBUG: Estilos inline para garantir visibilidade
+  const panelStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '90vw',
+    maxWidth: '1200px',
+    height: '90vh',
+    maxHeight: '800px',
+    backgroundColor: '#1a1a2e',
+    zIndex: '9999',
+    display: 'flex',
+    flexDirection: 'column',
+    borderRadius: '12px',
+    boxShadow: '0 0 50px rgba(0, 255, 136, 0.5)',
+    overflow: 'hidden',
+  };
 
   const handleDeliverGoal = () => {
     setShowSuccessModal(true);
@@ -230,46 +247,35 @@ export default function App() {
   if (loading) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center pointer-events-none p-4">
-      <div className="w-full max-w-[90vw] max-h-[90vh] bg-black relative overflow-hidden rounded-[20px] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10 pointer-events-auto flex flex-col" style={{ maxWidth: '1280px', maxHeight: '90vh' }}>
+    <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-auto" style={panelStyle}>
+      <div
+        className="w-full max-w-[90vw] max-h-[90vh] bg-black relative flex flex-col rounded-[20px] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10 overflow-hidden"
+        style={{ maxWidth: '1280px', height: '100%', backgroundColor: '#0c0505' }}
+      >
         <style>{`
-          .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2);
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(161, 18, 18, 0.4);
-            border-radius: 10px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: rgba(161, 18, 18, 0.6);
-          }
+          .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(161, 18, 18, 0.4); border-radius: 10px; }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(161, 18, 18, 0.6); }
         `}</style>
-        {/* Background overlay */}
-        <div className="absolute inset-0 z-0 overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920&h=1080&fit=crop"
-          alt="Background"
-          className="w-full h-full object-cover opacity-30"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/90" />
-      </div>
+        {/* Background */}
+        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#0c0505] via-[#1a0a0a] to-[#0c0505]" aria-hidden="true" />
 
-      {/* Fixed Header */}
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        bankBalance={orgInfo?.balance ?? 0}
-        membersOnline={members.filter(m => m.online).length}
-        maxMembers={149}
-        orgLabel={orgInfo?.label}
-      />
+        {/* Header no fluxo: ocupa espaço e não sobrepõe */}
+        <header className="relative z-10 flex-shrink-0">
+          <Header
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onClose={closePanel}
+            bankBalance={orgInfo?.balance ?? 0}
+            membersOnline={members.filter(m => m.online).length}
+            maxMembers={149}
+            orgLabel={orgInfo?.label}
+          />
+        </header>
 
-      {/* Scrollable Content Area */}
-      <div className="relative z-10 flex-1 flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pt-[30px] pb-16">
+        {/* Área que rola: só esta div tem overflow */}
+        <div className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-8 pt-6 pb-16">
           {activeTab === "INÍCIO" && (
             <Dashboard
               onDeliverGoal={handleDeliverGoal}
@@ -289,7 +295,15 @@ export default function App() {
                     rewardClaimed={farmProgress.rewardClaimed}
                     onClaim={handleClaimFarmReward}
                   />
-                ) : null
+                ) : (
+                  <div className="bg-gradient-to-b from-[#1a0a0a]/80 to-[#0c0505]/80 backdrop-blur-md rounded-[14px] border border-[rgba(161,18,18,0.4)] p-6">
+                    <h2 className="text-white text-lg font-['Arimo:Bold',sans-serif] mb-4">Entrega de Farm</h2>
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <p className="text-[#99a1af] text-sm text-center">Carregando seu progresso...</p>
+                      <p className="text-[#99a1af] text-xs mt-2 text-center">Se não aparecer, verifique se está na organização.</p>
+                    </div>
+                  </div>
+                )
               }
             />
           )}
@@ -324,7 +338,6 @@ export default function App() {
             />
           )}
         </div>
-      </div>
 
       {/* Modals */}
       {showSuccessModal && (
@@ -357,6 +370,7 @@ export default function App() {
           onClose={() => setShowBankModal(false)}
           onConfirm={confirmBankOperation}
           members={members}
+          currentPlayer={currentPlayer}
         />
       )}
       {showEditGoalModal && (
