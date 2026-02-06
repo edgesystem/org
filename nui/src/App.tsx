@@ -301,19 +301,31 @@ export default function App() {
 
   // ✅ USA CSS DISPLAY EM VEZ DE RETURN NULL
 
-  // Loading state
+  // Loading state - mostra painel mesmo em carregando
   if (loading && !orgInfo) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div 
+        className="min-h-screen bg-black flex items-center justify-center"
+        style={{ 
+          display: isVisible ? 'flex' : 'none',
+          pointerEvents: isVisible ? 'all' : 'none'
+        }}
+      >
         <div className="text-white text-2xl">Carregando...</div>
       </div>
     );
   }
 
-  // Error state
+  // Error state - mostra painel mesmo com erro
   if (error && !orgInfo) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div 
+        className="min-h-screen bg-black flex items-center justify-center"
+        style={{ 
+          display: isVisible ? 'flex' : 'none',
+          pointerEvents: isVisible ? 'all' : 'none'
+        }}
+      >
         <div className="text-red-500 text-2xl">Erro: {error}</div>
       </div>
     );
