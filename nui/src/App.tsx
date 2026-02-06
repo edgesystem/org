@@ -299,10 +299,7 @@ export default function App() {
     // TODO: Se houver callback no backend para salvar, adicionar aqui
   };
 
-  // Se não estiver visível, não renderizar nada
-  if (!isVisible) {
-    return null;
-  }
+  // ✅ USA CSS DISPLAY EM VEZ DE RETURN NULL
 
   // Loading state
   if (loading && !orgInfo) {
@@ -323,7 +320,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
+    <div 
+      className="min-h-screen bg-black relative overflow-hidden"
+      style={{ 
+        display: isVisible ? 'block' : 'none',
+        pointerEvents: isVisible ? 'all' : 'none'
+      }}
+    >
       {/* Background gradient em vez de imagem */}
       <div className="fixed inset-0 z-0">
         <div className="w-full h-full bg-gradient-to-br from-[#0a0404] via-black to-[#0f0505] opacity-90" />
