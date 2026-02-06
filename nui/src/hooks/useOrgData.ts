@@ -66,14 +66,14 @@ export function useOrgData(): UseOrgDataReturn {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * ✅ Helper para lidar com callbacks que não existem no servidor
+   * ✅ Helper silencioso para callbacks que não existem no servidor
    */
   const safeFetchNui = async <T,>(event: string, fallback: T): Promise<T> => {
     try {
       const result = await fetchNui<T>(event);
-      return result || fallback;
-    } catch (err) {
-      console.warn(`[useOrgData] Callback ${event} não disponível, usando fallback`, err);
+      return result !== null ? result : fallback;
+    } catch {
+      // Silencioso - callback inexistente é esperado em dev
       return fallback;
     }
   };

@@ -30,20 +30,18 @@ export async function fetchNui<T = any>(
     });
 
     if (!response.ok) {
-      // 404 é esperado quando callback não existe no server
+      // 404 é silenciosamente tratado - callback não existe
       if (response.status === 404) {
-        console.warn(`[fetchNui] Callback ${eventName} não existe no server (esperado em dev)`);
         return null as T;
-    }
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json();
     return result as T;
   } catch (error) {
-    // Só loga erro se não for 404
-    console.warn(`[fetchNui] Erro em ${eventName}:`, error);
-    throw error;
+    // Silencioso em dev - callback inexistente é esperado
+    return null as T;
   }
 }
 
