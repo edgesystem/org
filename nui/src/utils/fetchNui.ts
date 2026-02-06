@@ -30,13 +30,19 @@ export async function fetchNui<T = any>(
     });
 
     if (!response.ok) {
+      // 404 é esperado quando callback não existe no server
+      if (response.status === 404) {
+        console.warn(`[fetchNui] Callback ${eventName} não existe no server (esperado em dev)`);
+        return null as T;
+    }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json();
     return result as T;
   } catch (error) {
-    console.error(`[fetchNui] Error calling ${eventName}:`, error);
+    // Só loga erro se não for 404
+    console.warn(`[fetchNui] Erro em ${eventName}:`, error);
     throw error;
   }
 }
@@ -53,6 +59,6 @@ export function isEnvBrowser(): boolean {
  */
 export function closePanel(): void {
   fetchNui('orgpanel:close').catch((err) => {
-    console.error('[closePanel] Error:', err);
+    // Ignorar erro ao fechar painel
   });
 }

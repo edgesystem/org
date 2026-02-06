@@ -5,7 +5,7 @@
 
   export default defineConfig({
   plugins: [react()],
-  base: './', // NECESSÁRIO para FiveM NUI carregar assets corretamente
+  base: '/', // SEM o ./ para funcionar no FiveM
   resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
